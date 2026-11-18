@@ -70,32 +70,32 @@ Rencana eksekusi bertahap (*step-by-step roadmap*) untuk membangun web aplikasi 
   - Tampilan bubble chat streaming interaktif.
 
 ### Fase 6: Panel Admin (Auth, Navigasi & Dashboard Beranda)
-- [ ] Buat halaman login admin di `src/app/admin/login/page.tsx` menggunakan Firebase Auth Client.
-- [ ] Buat layout pelindung `src/app/admin/layout.tsx` untuk memvalidasi status login admin (redirect jika unauthenticated).
-- [ ] Bangun komponen `AdminNav` (Fixed Bottom Navigation Bar dengan 4 menu: Beranda, Pesanan, Barang, Toko).
-- [ ] Bangun dashboard beranda `src/app/admin/page.tsx`:
+- [x] Buat halaman login admin di `src/app/admin/login/page.tsx` menggunakan Firebase Auth Client.
+- [x] Buat layout pelindung `src/app/admin/layout.tsx` untuk memvalidasi status login admin (redirect jika unauthenticated).
+- [x] Bangun komponen `AdminNav` (Fixed Bottom Navigation Bar dengan 4 menu: Beranda, Pesanan, Barang, Toko).
+- [x] Bangun dashboard beranda `src/app/admin/page.tsx`:
   - Widget Banner Salin Link Toko (dengan fungsi copy clipboard & native share).
   - Kartu Metrik: Total Pesanan Masuk, Total Produk Aktif, dan Total Pengunjung.
   - Filter rentang waktu pengunjung: Hari Ini, 7 Hari Terakhir, 30 Hari Terakhir, dan Semua Waktu via `GET /api/analytics/stats`.
 
 ### Fase 7: Manajemen Produk & AI Foto Studio (Cloudflare)
-- [ ] Bangun halaman daftar barang `src/app/admin/barang/page.tsx` dengan status stok dan tombol tambah.
-- [ ] Bangun form tambah/edit barang `src/app/admin/barang/tambah/page.tsx`:
+- [x] Bangun halaman daftar barang `src/app/admin/barang/page.tsx` dengan status stok dan tombol tambah.
+- [x] Bangun form tambah/edit barang `src/app/admin/barang/tambah/page.tsx`:
   - Input: Nama Barang, Harga, Keterangan opsional.
   - Multi-photo uploader ke Firebase Storage (maksimal 5 slot foto).
   - Toggle status stok (Tersedia / Habis).
-- [ ] Implementasikan endpoint `POST /api/ai/enhance-image`:
+- [x] Implementasikan endpoint `POST /api/ai/enhance-image`:
   - Integrasi Cloudflare Workers AI model `@cf/black-forest-labs/flux-2-klein-4b`.
   - Preset prompt otomatis studio jam tangan mewah tanpa perlu admin mengetik prompt.
   - Unggah hasil generate ke Firebase Storage dan kembalikan URL.
-- [ ] Tambahkan tombol 1-klik "AI Studio Enhance" pada setiap slot foto yang diunggah, dan simpan hasilnya sebagai foto alternatif.
+- [x] Tambahkan tombol 1-klik "AI Studio Enhance" pada setiap slot foto yang diunggah, dan simpan hasilnya sebagai foto alternatif.
 
 ### Fase 8: Manajemen Pesanan & Tab Riwayat (History)
-- [ ] Bangun halaman `src/app/admin/pesanan/page.tsx` dengan dua tab: **Pesanan Masuk (Aktif)** dan **Riwayat (History)**.
+- [x] Bangun halaman `src/app/admin/pesanan/page.tsx` dengan dua tab: **Pesanan Masuk (Aktif)** dan **Riwayat (History)**.
 - [ ] Tab Pesanan Masuk:
   - Tampilkan rincian pesanan (Nama, No WA customer, Alamat, Item, Total).
   - Tombol aksi **"Tandai Selesai"**.
-- [ ] Buat endpoint `PATCH /api/orders/[id]` untuk memperbarui status pesanan menjadi `completed`.
+- [x] Buat endpoint `PATCH /api/orders/[id]` untuk memperbarui status pesanan menjadi `completed`.
 - [ ] Tab Riwayat (History):
   - Menampilkan seluruh pesanan berstatus `completed` sebagai arsip transaksi.
 

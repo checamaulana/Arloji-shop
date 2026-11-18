@@ -1,7 +1,8 @@
 # Sultan Arloji - Implementation Progress
 
 ## Status Ringkasan
-- Fase 1 sampai 5 dari IMPLEMENTATION_PLAN.md telah berhasil dikerjakan secara tuntas, teruji, dan diverifikasi melalui kompilasi TypeScript serta Next.js Production Build (`next build`).
+- Implementasi Fase 1 sampai 8 dari IMPLEMENTATION_PLAN.md telah selesai. Fase 9 dan 10 masih menunggu pengerjaan.
+- TypeScript dan production build sempat lolos setelah implementasi inti admin. Perubahan pengamanan/validasi terakhir belum dapat diverifikasi ulang melalui terminal.
 
 ## Rincian Progres
 - [x] Inisialisasi file progress.txt dan lessons.md sesuai aturan AGENTS.md.
@@ -10,8 +11,8 @@
 - [x] Fase 3: Tampilan Katalog & Alur Checkout Customer (HeaderStore, ProductCard multi-photo swipe & badge, Drawer checkout bottom sheet, form pemesan WhatsApp).
 - [x] Fase 4: Backend Order & Tracking Pengunjung (Route Handler `POST /api/analytics/track-visit`, pageview visitor tracking trigger, `POST /api/orders` & atomic `whatsapp_clicks` increment, `GET /api/products`, `GET & PUT /api/store`).
 - [x] Fase 5: AI Shopping Assistant (OpenRouter & Vercel AI SDK, `POST /api/chat` streaming dengan injeksi katalog & data terlaris Firestore, komponen `AIChatFloating` interactive concierge modal).
-- [ ] Fase 6: Panel Admin (Auth, Navigasi & Dashboard Beranda)
-- [ ] Fase 7: Manajemen Produk & AI Foto Studio (Cloudflare)
-- [ ] Fase 8: Manajemen Pesanan & Tab Riwayat (History)
+- [x] Fase 6: Panel Admin (Firebase Auth, session cookie httpOnly, proteksi halaman/API, navigasi, dashboard metrik, analytics range, salin/bagikan link).
+- [x] Fase 7: Manajemen Produk (CRUD, unggah hingga 5 foto Firebase Storage, status stok, AI photo enhancement Cloudflare Workers AI).
+- [x] Fase 8: Manajemen Pesanan (tab aktif/riwayat, rincian customer, tandai selesai, endpoint status terproteksi).
 - [ ] Fase 9: Pengaturan Profil Toko & Sinkronisasi Nomor WhatsApp
 - [ ] Fase 10: Pengujian Akhir & QA

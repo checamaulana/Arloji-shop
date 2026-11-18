@@ -7,3 +7,5 @@
 - Pada `ai` SDK v7+: gunakan `streamText` dengan `result.toTextStreamResponse()` dan pembacaan stream teks murni pada client reader.
 - Pada `firebase-admin` modern: gunakan modular imports seperti `import { initializeApp, cert, getApps } from "firebase-admin/app"` dan `import { getFirestore } from "firebase-admin/firestore"`.
 - Sediakan fallback data awal (`initial-data.ts`) agar katalog dan asisten AI tetap dapat dijalankan secara lancar dan siap didemokan meskipun saat awal Firebase Cloud credentials belum diisi secara penuh.
+- Pada Next.js 16, penggunaan `usePathname()` di client component perlu dibungkus dengan `Suspense` agar route dapat diprerender.
+- Untuk aturan lint React Hooks proyek ini, muat data di dalam effect asinkron dan lakukan perubahan state setelah operasi async selesai, bukan secara sinkron di awal effect.

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { OrderDocument } from "@/types/order";
+import { verifyAdminRequest } from "@/lib/auth/verify-admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,31 +72,42 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!(await verifyAdminRequest())) {
+    return NextResponse.json({ error: "Sesi admin tidak valid." }, { status: 401 });
+  }
+
   try {
+    const status = request.nextUrl.searchParams.get("status");
+    if (status && status !== "active" && status !== "completed") {
+      return NextResponse.json({ error: "Filter status tidak valid." }, { status: 400 });
+    }
+
     const snapshot = await adminDb
       .collection("orders")
       .orderBy("created_at", "desc")
       .get();
 
-    const orders: OrderDocument[] = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        customer_name: data.customer_name,
-        customer_phone: data.customer_phone,
-        delivery_address: data.delivery_address,
-        item: data.item,
-        total_price: data.total_price,
-        status: data.status,
-        created_at: data.created_at?.toDate?.()?.toISOString() || null,
-        completed_at: data.completed_at?.toDate?.()?.toISOString() || null,
-      };
-    });
+    const orders: OrderDocument[] = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          customer_name: data.customer_name,
+          customer_phone: data.customer_phone || data.customer_wa || "",
+          delivery_address: data.delivery_address || data.customer_address || "",
+          item: data.item,
+          total_price: data.total_price,
+          status: data.status,
+          created_at: data.created_at?.toDate?.()?.toISOString() || null,
+          completed_at: data.completed_at?.toDate?.()?.toISOString() || null,
+        };
+      })
+      .filter((order) => !status || order.status === status);
 
     return NextResponse.json({ orders });
   } catch (error) {
     console.error("Error fetching orders:", error);
-    return NextResponse.json({ orders: [] }, { status: 200 });
+    return NextResponse.json({ error: "Gagal memuat pesanan." }, { status: 500 });
   }
 }

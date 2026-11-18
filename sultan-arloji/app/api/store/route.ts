@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { StoreDocument } from "@/types/store";
 import { initialStoreData } from "@/lib/data/initial-data";
 import { FieldValue } from "firebase-admin/firestore";
+import { verifyAdminRequest } from "@/lib/auth/verify-admin";
 
 export async function GET() {
   try {
@@ -22,6 +23,10 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  if (!(await verifyAdminRequest())) {
+    return NextResponse.json({ error: "Sesi admin tidak valid." }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { name, whatsapp_number, bio, logo_url } = body;
