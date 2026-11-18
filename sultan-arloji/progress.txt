@@ -1,0 +1,17 @@
+# Sultan Arloji - Implementation Progress
+
+## Status Ringkasan
+- Fase 1 sampai 5 dari IMPLEMENTATION_PLAN.md telah berhasil dikerjakan secara tuntas, teruji, dan diverifikasi melalui kompilasi TypeScript serta Next.js Production Build (`next build`).
+
+## Rincian Progres
+- [x] Inisialisasi file progress.txt dan lessons.md sesuai aturan AGENTS.md.
+- [x] Fase 1: Inisialisasi Proyek & Desain Sistem (Foundation, Luxury Theme, AppShell Mobile Container, Shadcn UI primitives Input & Skeleton, Sonner Toaster).
+- [x] Fase 2: Integrasi Firebase & Seeding Data (Firebase Client & Admin SDK modular, Firestore models & TypeScript types, .env.local template, script seeder `scripts/seed.ts`).
+- [x] Fase 3: Tampilan Katalog & Alur Checkout Customer (HeaderStore, ProductCard multi-photo swipe & badge, Drawer checkout bottom sheet, form pemesan WhatsApp).
+- [x] Fase 4: Backend Order & Tracking Pengunjung (Route Handler `POST /api/analytics/track-visit`, pageview visitor tracking trigger, `POST /api/orders` & atomic `whatsapp_clicks` increment, `GET /api/products`, `GET & PUT /api/store`).
+- [x] Fase 5: AI Shopping Assistant (OpenRouter & Vercel AI SDK, `POST /api/chat` streaming dengan injeksi katalog & data terlaris Firestore, komponen `AIChatFloating` interactive concierge modal).
+- [ ] Fase 6: Panel Admin (Auth, Navigasi & Dashboard Beranda)
+- [ ] Fase 7: Manajemen Produk & AI Foto Studio (Cloudflare)
+- [ ] Fase 8: Manajemen Pesanan & Tab Riwayat (History)
+- [ ] Fase 9: Pengaturan Profil Toko & Sinkronisasi Nomor WhatsApp
+- [ ] Fase 10: Pengujian Akhir & QA

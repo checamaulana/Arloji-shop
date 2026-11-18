@@ -1,69 +1,217 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState, useEffect, useMemo } from "react";
+import { ProductDocument } from "@/types/product";
+import { StoreDocument } from "@/types/store";
+import { initialStoreData, initialProducts } from "@/lib/data/initial-data";
+import { HeaderStore } from "@/components/customer/header-store";
+import { ProductCard } from "@/components/customer/product-card";
+import { CheckoutDrawer } from "@/components/customer/checkout-drawer";
+import { AIChatFloating } from "@/components/customer/ai-chat-floating";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Search, Flame, Watch, SlidersHorizontal } from "lucide-react";
+
+const BRAND_FILTERS = ["Semua", "Rolex", "Patek", "Audemars", "Hublot"];
+
+export default function CatalogPage() {
+  const [store, setStore] = useState<StoreDocument>(initialStoreData);
+  const [products, setProducts] = useState<ProductDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("Semua");
+  const [selectedProduct, setSelectedProduct] = useState<ProductDocument | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // 1. Trigger visit tracking once on mount
+  useEffect(() => {
+    fetch("/api/analytics/track-visit", { method: "POST" }).catch((err) =>
+      console.warn("Analytics tracking background warning:", err)
+    );
+  }, []);
+
+  // 2. Load store profile and products
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [storeRes, productsRes] = await Promise.all([
+          fetch("/api/store"),
+          fetch("/api/products"),
+        ]);
+
+        if (storeRes.ok) {
+          const storeData = await storeRes.json();
+          if (storeData.store) {
+            setStore(storeData.store);
+          }
+        }
+
+        if (productsRes.ok) {
+          const productsData = await productsRes.json();
+          if (productsData.products && productsData.products.length > 0) {
+            setProducts(productsData.products);
+          } else {
+            // Fallback to initial products with ids
+            setProducts(
+              initialProducts.map((p, i) => ({ ...p, id: `init-${i}` }))
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("Load catalog warning, using initial data:", err);
+        setProducts(
+          initialProducts.map((p, i) => ({ ...p, id: `init-${i}` }))
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  // Filter products by search and brand
+  const filteredProducts = useMemo(() => {
+    return products.filter((item) => {
+      const matchSearch =
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.description &&
+          item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchBrand =
+        selectedBrand === "Semua" ||
+        item.name.toLowerCase().includes(selectedBrand.toLowerCase());
+
+      return matchSearch && matchBrand;
+    });
+  }, [products, searchQuery, selectedBrand]);
+
+  const handleOpenOrder = (product: ProductDocument) => {
+    setSelectedProduct(product);
+    setIsDrawerOpen(true);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="flex-1 flex flex-col pb-24">
+      {/* 1. Header Profil Toko Sultan Arloji */}
+      <HeaderStore store={store} />
+
+      {/* 2. Search Bar & Brand Filter */}
+      <div className="sticky top-0 z-30 bg-[#0B0B0B]/95 backdrop-blur-md px-4 py-3 border-b border-neutral-800/80 space-y-2.5">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari Rolex, Patek Philippe, Audemars..."
+            className="w-full h-10 rounded-xl bg-neutral-900 border border-neutral-800 pl-10 pr-4 text-xs text-white placeholder:text-neutral-500 outline-none focus:border-[#D4AF37] transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white text-xs px-1"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Brand Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {BRAND_FILTERS.map((brand) => {
+            const isSelected = selectedBrand === brand;
+            return (
+              <button
+                key={brand}
+                onClick={() => setSelectedBrand(brand)}
+                className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-medium transition-all active:scale-95 ${
+                  isSelected
+                    ? "bg-[#D4AF37] text-black shadow-md shadow-amber-500/20 font-semibold"
+                    : "bg-neutral-900 text-neutral-400 border border-neutral-800 hover:text-white hover:border-neutral-700"
+                }`}
+              >
+                {brand}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Section Title & Catalog List */}
+      <div className="px-4 pt-4 flex-1">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center gap-1.5">
+            <Flame className="size-4 text-[#D4AF37]" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-200">
+              Koleksi Jam Tangan ({filteredProducts.length})
+            </h2>
+          </div>
+          <span className="text-[11px] text-[#D4AF37] font-medium">
+            100% Original Guaranteed
+          </span>
+        </div>
+
+        {/* Loading Skeletons */}
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-neutral-800 bg-[#171717] p-3 space-y-3"
+              >
+                <Skeleton className="aspect-square w-full rounded-xl" />
+                <Skeleton className="h-4 w-3/4 rounded" />
+                <Skeleton className="h-4 w-1/3 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : filteredProducts.length > 0 ? (
+          <div className="space-y-4">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onOrder={handleOpenOrder}
+              />
+            ))}
+          </div>
+        ) : (
+          /* Empty Search State */
+          <div className="py-16 text-center space-y-3">
+            <div className="size-14 mx-auto rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-500">
+              <Watch className="size-6 text-neutral-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">
+                Jam tangan tidak ditemukan
+              </p>
+              <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
+                Silakan coba kata kunci lain atau hubungi asisten butik kami untuk request model khusus.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedBrand("Semua");
+              }}
+              className="text-xs text-[#D4AF37] underline underline-offset-4 hover:text-[#F3E5AB]"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+              Reset Pencarian
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Checkout Drawer (WhatsApp Order Flow) */}
+      <CheckoutDrawer
+        product={selectedProduct}
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        storeWhatsappNumber={store.whatsapp_number}
+      />
+
+      {/* 5. Floating AI Concierge Chatbot */}
+      <AIChatFloating />
     </div>
   );
 }
