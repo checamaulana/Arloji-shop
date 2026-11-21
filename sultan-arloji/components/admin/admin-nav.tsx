@@ -11,6 +11,7 @@ const navigation = [
   { href: "/admin", label: "Beranda", icon: BarChart3, exact: true },
   { href: "/admin/pesanan", label: "Pesanan", icon: ClipboardList, exact: false },
   { href: "/admin/barang", label: "Barang", icon: Package, exact: false },
+  { href: "/admin/toko", label: "Toko", icon: Store, exact: false },
 ];
 
 export function AdminNav() {
@@ -58,14 +59,6 @@ export function AdminNav() {
             </Link>
           );
         })}
-        <span
-          aria-disabled="true"
-          title="Pengaturan toko tersedia pada fase berikutnya"
-          className="flex min-w-14 flex-col items-center gap-1 px-2 py-1 text-[10px] font-medium text-neutral-700"
-        >
-          <Store className="size-5" />
-          Toko
-        </span>
       </nav>
     </>
   );

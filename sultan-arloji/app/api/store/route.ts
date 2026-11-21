@@ -4,6 +4,7 @@ import { StoreDocument } from "@/types/store";
 import { initialStoreData } from "@/lib/data/initial-data";
 import { FieldValue } from "firebase-admin/firestore";
 import { verifyAdminRequest } from "@/lib/auth/verify-admin";
+import { formatWhatsAppNumber } from "@/lib/utils";
 
 export async function GET() {
   try {
@@ -28,18 +29,42 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const { name, whatsapp_number, bio, logo_url } = body;
+    const body: unknown = await req.json();
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Data toko tidak valid." }, { status: 400 });
+    }
+
+    const data = body as Record<string, unknown>;
+    const name = typeof data.name === "string" ? data.name.trim() : undefined;
+    const bio = typeof data.bio === "string" ? data.bio.trim() : undefined;
+    const logoUrl = typeof data.logo_url === "string" ? data.logo_url.trim() : undefined;
+    const whatsappNumber =
+      typeof data.whatsapp_number === "string"
+        ? formatWhatsAppNumber(data.whatsapp_number)
+        : undefined;
+
+    if (name !== undefined && (!name || name.length > 160)) {
+      return NextResponse.json({ error: "Nama toko wajib diisi dan maksimal 160 karakter." }, { status: 400 });
+    }
+    if (bio !== undefined && bio.length > 2000) {
+      return NextResponse.json({ error: "Bio maksimal 2000 karakter." }, { status: 400 });
+    }
+    if (whatsappNumber !== undefined && !/^62\d{8,14}$/.test(whatsappNumber)) {
+      return NextResponse.json({ error: "Nomor WhatsApp tidak valid." }, { status: 400 });
+    }
+    if (logoUrl !== undefined && logoUrl.length > 2048) {
+      return NextResponse.json({ error: "URL logo tidak valid." }, { status: 400 });
+    }
 
     const docRef = adminDb.collection("stores").doc("sultan-arloji");
     const updateData: Partial<StoreDocument> = {
       updated_at: FieldValue.serverTimestamp(),
     };
 
-    if (name) updateData.name = name;
-    if (whatsapp_number) updateData.whatsapp_number = whatsapp_number;
+    if (name !== undefined) updateData.name = name;
+    if (whatsappNumber !== undefined) updateData.whatsapp_number = whatsappNumber;
     if (bio !== undefined) updateData.bio = bio;
-    if (logo_url !== undefined) updateData.logo_url = logo_url;
+    if (logoUrl !== undefined) updateData.logo_url = logoUrl;
 
     await docRef.set(updateData, { merge: true });
 
