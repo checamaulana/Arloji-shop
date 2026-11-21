@@ -100,13 +100,13 @@ Rencana eksekusi bertahap (*step-by-step roadmap*) untuk membangun web aplikasi 
   - Menampilkan seluruh pesanan berstatus `completed` sebagai arsip transaksi.
 
 ### Fase 9: Pengaturan Profil Toko & Sinkronisasi Nomor WhatsApp
-- [ ] Bangun halaman `src/app/admin/toko/page.tsx`:
-  - Form ubah Nama Toko dan Bio.
-  - Upload Foto Profil / Logo Toko ke Firebase Storage.
-  - Input field **Nomor WhatsApp Toko** (nomor admin penerima pesanan).
-  - Form ganti Email & Password admin.
-- [ ] Buat endpoint `PUT /api/store` untuk memperbarui data toko di Firestore.
-- [ ] Pastikan seluruh drawer checkout customer membaca nomor WhatsApp terbaru ini secara dinamis.
+- [x] Bangun halaman `src/app/admin/toko/page.tsx`:
+  - [x] Form ubah Nama Toko dan Bio.
+  - [x] Upload Foto Profil / Logo Toko ke Firebase Storage.
+  - [x] Input field **Nomor WhatsApp Toko** (nomor admin penerima pesanan).
+  - [x] Form ganti Email & Password admin.
+- [x] Buat endpoint `PUT /api/store` untuk memperbarui data toko di Firestore.
+- [x] Pastikan seluruh drawer checkout customer membaca nomor WhatsApp terbaru ini secara dinamis.
 
 ### Fase 10: Pengujian Akhir & QA
 - [ ] **End-to-End Checkout Test:** Uji pembuatan pesanan dari katalog customer, penyimpanan ke Firestore, counter klik WA, hingga pembukaan aplikasi WhatsApp dengan pesan terformat rapi.
