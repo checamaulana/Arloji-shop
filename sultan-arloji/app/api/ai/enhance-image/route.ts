@@ -12,6 +12,7 @@ const STUDIO_PROMPT =
   "Preserve the watch's design, proportions, colors, dial, hands, strap, logos, and lettering.";
 // FLUX.2 reference images must be smaller than 512 × 512 pixels.
 const MAX_REFERENCE_SIDE = 511;
+const GENERATED_IMAGE_SIDE = "512";
 const MAX_ADJUSTED_SIDE = 1920;
 
 export async function POST(request: Request) {
@@ -69,6 +70,8 @@ export async function POST(request: Request) {
 
     const formData = new FormData();
     formData.set("prompt", STUDIO_PROMPT);
+    formData.set("width", GENERATED_IMAGE_SIDE);
+    formData.set("height", GENERATED_IMAGE_SIDE);
     formData.set("input_image_0", new Blob([new Uint8Array(reference)], { type: "image/png" }), "source.png");
 
     const aiResponse = await fetch(
@@ -82,8 +85,11 @@ export async function POST(request: Request) {
     );
 
     const aiResult = await aiResponse.json().catch(() => null) as { errors?: { code?: number }[] } | null;
-    const useLocalAdjustment = !aiResponse.ok && Array.isArray(aiResult?.errors)
+    const moderationRejected = Array.isArray(aiResult?.errors)
       && aiResult.errors.some((error) => error?.code === 3030);
+    const fallbackReason = aiResponse.status === 429 ? "rate_limit"
+      : !aiResponse.ok && moderationRejected ? "moderation" : null;
+    const useLocalAdjustment = fallbackReason !== null;
     if (!aiResponse.ok && !useLocalAdjustment) {
       console.error("Cloudflare Workers AI request failed:", aiResponse.status, aiResult);
       return NextResponse.json(
@@ -131,6 +137,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       enhanced_image_url: bucket.getPublicUrl(path).data.publicUrl,
       enhancement_method: useLocalAdjustment ? "local" : "ai",
+      fallback_reason: fallbackReason,
     });
   } catch (error) {
     console.error("Error enhancing product photo:", error);

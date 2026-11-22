@@ -105,15 +105,24 @@ export function AdminProductForm({ productId }: { productId?: string }) {
         body: JSON.stringify({ image_url: photos[index].url }),
       });
       const data = await response.json().catch(() => null);
+      if (response.status === 401) {
+        setGalleryNotice({ text: "Sesi admin berakhir. Masuk lagi di tab lain, lalu coba ulang di sini.", error: true });
+        return;
+      }
       if (!response.ok || typeof data?.enhanced_image_url !== "string" || !data.enhanced_image_url) {
         throw new Error(data?.error || "Foto tidak dapat disempurnakan.");
       }
       const enhancement = data.enhancement_method === "local" ? "local" : "ai";
       const enhancedPhoto: Photo = { url: data.enhanced_image_url, enhancement };
       setPhotos((current) => [...current, enhancedPhoto].slice(0, MAX_PHOTOS));
-      setGalleryNotice({ text: enhancement === "local"
-        ? "Cloudflare menolak hasil AI. Foto dengan kontras dan ketajaman yang disesuaikan ditambahkan ke galeri."
-        : "Hasil AI ditambahkan ke galeri." });
+      if (enhancement === "local") {
+        const reason = data.fallback_reason === "rate_limit"
+          ? "Cloudflare mencapai batas penggunaan AI."
+          : "Cloudflare menolak hasil AI.";
+        setGalleryNotice({ text: `${reason} Foto yang sudah disesuaikan ditambahkan ke galeri.` });
+      } else {
+        setGalleryNotice({ text: "Hasil AI ditambahkan ke galeri." });
+      }
     } catch (error) {
       console.error("Could not enhance product photo:", error);
       setGalleryNotice({ text: error instanceof Error ? error.message : "Gagal menyempurnakan foto.", error: true });

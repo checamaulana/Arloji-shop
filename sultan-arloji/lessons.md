@@ -11,3 +11,4 @@
 - Untuk aturan lint React Hooks proyek ini, muat data di dalam effect asinkron dan lakukan perubahan state setelah operasi async selesai, bukan secara sinkron di awal effect.
 - Pada REST API Cloudflare Workers AI, pertahankan garis miring ID model di URL. Untuk FLUX.2 klein 4B, kirim foto referensi melalui `input_image_0` dengan kedua sisi di bawah 512 piksel.
 - Saat Cloudflare menolak hasil penyempurnaan foto dengan kode 3030, sesuaikan kontras dan ketajaman foto sumber dengan Sharp dan beri label yang sesuai pada hasilnya.
+- Batas penggunaan Cloudflare Workers AI dapat muncul sebagai HTTP 429 dengan kode 4006. Gunakan jalur penyempurnaan lokal dan tampilkan alasannya di panel admin.
