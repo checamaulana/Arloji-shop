@@ -2,23 +2,30 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { signOut } from "firebase/auth";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase/client";
-import { BarChart3, ClipboardList, Package, Store, LogOut } from "lucide-react";
+import { ChartNoAxesColumn, ClipboardList, Package, Store, LogOut, Watch } from "lucide-react";
+import { useChromeSize } from "@/components/ui/design-layout";
 
 const navigation = [
-  { href: "/admin", label: "Beranda", icon: BarChart3, exact: true },
+  { href: "/admin", label: "Beranda", icon: ChartNoAxesColumn, exact: true },
   { href: "/admin/pesanan", label: "Pesanan", icon: ClipboardList, exact: false },
   { href: "/admin/barang", label: "Barang", icon: Package, exact: false },
   { href: "/admin/toko", label: "Toko", icon: Store, exact: false },
 ];
 
-export function AdminNav() {
+export function AdminNav({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const nav = useRef<HTMLElement>(null);
+  useChromeSize(nav, "bottom");
 
   async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
     try {
       const response = await fetch("/api/auth/session", { method: "DELETE" });
       if (!response.ok) throw new Error("Sesi server tidak dapat dihapus.");
@@ -27,35 +34,27 @@ export function AdminNav() {
     } catch (error) {
       console.error("Admin logout failed:", error);
       toast.error("Gagal keluar. Silakan coba lagi.");
+      setLoggingOut(false);
     }
   }
 
   return (
     <>
-      <div className="flex justify-end px-5 pt-4">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-900 hover:text-red-400"
-        >
-          <LogOut className="size-4" />
-          Keluar
+      <header className="gutter flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface py-2.5">
+        <p className="flex min-w-0 items-center gap-2.5 font-bold wrap-anywhere">
+          <span className="icon-tile"><Watch aria-hidden="true" /></span> Sultan Arloji
+        </p>
+        <button type="button" className="action action-ghost" onClick={handleLogout} disabled={loggingOut}>
+          <LogOut aria-hidden="true" /> {loggingOut ? "Keluar…" : "Keluar"}
         </button>
-      </div>
-      <nav className="fixed bottom-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 items-center justify-around border-t border-neutral-800 bg-[#141414]/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-2xl backdrop-blur">
+      </header>
+      {children}
+      <nav ref={nav} aria-label="Navigasi admin" className="admin-nav glass fixed bottom-0 left-1/2 z-40 grid -translate-x-1/2 grid-cols-4 items-stretch gap-1 border-t border-border px-2 pt-2 shadow-[0_-4px_16px_rgb(23_18_23/6%)]">
         {navigation.map(({ href, label, icon: Icon, exact }) => {
-          const isActive = exact ? pathname === href : pathname.startsWith(href);
+          const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
           return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={isActive ? "page" : undefined}
-              className={`flex min-w-14 flex-col items-center gap-1 px-2 py-1 text-[10px] font-medium transition-colors ${
-                isActive ? "text-[#D4AF37]" : "text-neutral-500 hover:text-neutral-200"
-              }`}
-            >
-              <Icon className="size-5" />
-              {label}
+            <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-center text-xs leading-4 wrap-anywhere ${active ? "bg-brand-tint font-bold text-brand" : "font-medium text-muted-foreground hover:bg-brand-tint hover:text-brand"}`}>
+              <Icon size={20} aria-hidden="true" className="shrink-0" /> {label}
             </Link>
           );
         })}

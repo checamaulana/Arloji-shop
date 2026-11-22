@@ -32,16 +32,17 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   if (pathname.endsWith("/login")) return children;
   if (checkedPathname !== pathname) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0B0B0B] text-sm text-neutral-400">
-        Memeriksa sesi admin...
-      </div>
+      <main id="konten" tabIndex={-1} className="app-shell flex items-center justify-center text-sm text-muted-foreground">
+        <p role="status">Memeriksa sesi admin…</p>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0B0B] pb-24">
-      <AdminNav />
-      {children}
+    <div className="app-shell admin-shell">
+      <AdminNav>
+        <main id="konten" tabIndex={-1}>{children}</main>
+      </AdminNav>
     </div>
   );
 }

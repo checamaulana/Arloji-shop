@@ -5,9 +5,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#0B0B0B] text-sm text-neutral-400">
-          Memuat panel admin...
-        </div>
+        <main id="konten" tabIndex={-1} role="status" className="flex app-shell items-center justify-center text-sm text-muted-foreground">
+          Memuat panel admin…
+        </main>
       }
     >
       <AdminAuthGuard>{children}</AdminAuthGuard>
