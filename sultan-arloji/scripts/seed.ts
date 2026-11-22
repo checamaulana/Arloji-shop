@@ -1,41 +1,32 @@
-import { adminDb } from "../lib/firebase/admin";
-import { initialStoreData, initialProducts } from "../lib/data/initial-data";
+import { getSupabaseAdmin } from "../lib/supabase/admin";
+import { initialProducts, initialStoreData } from "../lib/data/initial-data";
 
 async function seed() {
-  console.log("🚀 Memulai seeding data Sultan Arloji ke Firestore...");
+  const supabase = getSupabaseAdmin();
+  const { error: storeError } = await supabase.from("stores").upsert({
+    id: "sultan-arloji",
+    name: initialStoreData.name,
+    logo_url: initialStoreData.logo_url,
+    whatsapp_number: initialStoreData.whatsapp_number,
+    bio: initialStoreData.bio ?? "",
+  }, { onConflict: "id", ignoreDuplicates: true });
+  if (storeError) throw storeError;
 
-  try {
-    // 1. Seed Profil Toko
-    console.log("📦 Menyimpan profil toko ke koleksi 'stores/sultan-arloji'...");
-    await adminDb.collection("stores").doc("sultan-arloji").set(
-      {
-        ...initialStoreData,
-        updated_at: new Date(),
-      },
-      { merge: true }
-    );
-    console.log("✅ Profil toko berhasil disimpan!");
-
-    // 2. Seed Produk Jam Tangan
-    console.log("📦 Menyimpan produk contoh ke koleksi 'products'...");
-    const productsCollection = adminDb.collection("products");
-
-    for (const product of initialProducts) {
-      const docRef = await productsCollection.add({
-        ...product,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
-      console.log(`✅ Produk ditambahkan: "${product.name}" (ID: ${docRef.id})`);
-    }
-
-    console.log("\n🎉 Seeding selesai dengan sukses!");
-    process.exit(0);
-  } catch (error) {
-    console.error("❌ Gagal melakukan seeding:", error);
-    console.log("💡 Pastikan credential Firebase Admin SDK (.env.local) telah dikonfigurasi dengan benar.");
-    process.exit(1);
-  }
+  const { error } = await supabase.from("products").upsert(
+    initialProducts.map((product, index) => ({
+      ...product,
+      id: `seed-${index + 1}`,
+      description: product.description ?? "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+  if (error) throw error;
+  console.log("Data contoh Sultan Arloji tersedia di Supabase.");
 }
 
-seed();
+seed().catch((error) => {
+  console.error("Gagal mengisi data contoh:", error);
+  process.exitCode = 1;
+});

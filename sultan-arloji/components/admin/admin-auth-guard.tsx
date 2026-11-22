@@ -10,8 +10,6 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   const [checkedPathname, setCheckedPathname] = useState<string | null>(null);
 
   useEffect(() => {
-    if (pathname.endsWith("/login")) return;
-
     let active = true;
     fetch("/api/auth/session", { cache: "no-store" })
       .then((response) => {
@@ -29,7 +27,6 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, router]);
 
-  if (pathname.endsWith("/login")) return children;
   if (checkedPathname !== pathname) {
     return (
       <main id="konten" tabIndex={-1} className="app-shell flex items-center justify-center text-sm text-muted-foreground">

@@ -1,5 +1,7 @@
 # Tech Stack & Architecture (TECH_STACK.md) — Sultan Arloji
 
+Implementasi aktif memakai Supabase Postgres, Auth, dan Storage. Lihat [README](README.md) dan [migrasi SQL](supabase/migrations/20261122000000_initial_schema.sql) untuk konfigurasi aktif. Rincian Firebase di bawah ini berasal dari rencana awal.
+
 Dokumen ini merangkum seluruh tumpukan teknologi (*technology stack*), pustaka dependensi, arsitektur integrasi AI, serta konfigurasi lingkungan kerja sistem **Sultan Arloji**.
 
 ---

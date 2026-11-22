@@ -1,31 +1,14 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST() {
+  const date = new Date().toISOString().slice(0, 10);
   try {
-    // Current date format YYYY-MM-DD
-    const now = new Date();
-    const dateStr = now.toISOString().split("T")[0]; // e.g. "2026-11-18"
-
-    const visitRef = adminDb.collection("analytics_visits").doc(dateStr);
-
-    await visitRef.set(
-      {
-        date: dateStr,
-        pageviews: FieldValue.increment(1),
-        last_updated: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    return NextResponse.json({ success: true, date: dateStr });
+    const { error } = await getSupabaseAdmin().rpc("record_visit", { p_date: date });
+    if (error) throw error;
+    return NextResponse.json({ success: true, date });
   } catch (error) {
     console.error("Error tracking visit:", error);
-    // Don't fail the client on tracking error
-    return NextResponse.json(
-      { success: false, error: "Failed to record visit" },
-      { status: 200 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to record visit" });
   }
 }

@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
-import { StoreDocument } from "@/types/store";
 import { initialStoreData } from "@/lib/data/initial-data";
-import { FieldValue } from "firebase-admin/firestore";
 import { verifyAdminRequest } from "@/lib/auth/verify-admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database";
 import { formatWhatsAppNumber } from "@/lib/utils";
 
 export async function GET() {
   try {
-    const docRef = adminDb.collection("stores").doc("sultan-arloji");
-    const docSnap = await docRef.get();
-
-    if (docSnap.exists) {
-      const data = docSnap.data() as StoreDocument;
-      return NextResponse.json({ store: data });
-    }
-
-    return NextResponse.json({ store: initialStoreData });
+    const { data, error } = await getSupabaseAdmin().from("stores")
+      .select("name, logo_url, whatsapp_number, bio, updated_at").eq("id", "sultan-arloji").maybeSingle();
+    if (error) throw error;
+    return NextResponse.json({ store: data ?? initialStoreData });
   } catch (error) {
     console.warn("Using fallback store info:", error);
     return NextResponse.json({ store: initialStoreData });
@@ -56,9 +50,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "URL logo tidak valid." }, { status: 400 });
     }
 
-    const docRef = adminDb.collection("stores").doc("sultan-arloji");
-    const updateData: Partial<StoreDocument> = {
-      updated_at: FieldValue.serverTimestamp(),
+    const updateData: Database["public"]["Tables"]["stores"]["Insert"] = {
+      id: "sultan-arloji",
+      updated_at: new Date().toISOString(),
     };
 
     if (name !== undefined) updateData.name = name;
@@ -66,7 +60,8 @@ export async function PUT(req: NextRequest) {
     if (bio !== undefined) updateData.bio = bio;
     if (logoUrl !== undefined) updateData.logo_url = logoUrl;
 
-    await docRef.set(updateData, { merge: true });
+    const { error } = await getSupabaseAdmin().from("stores").upsert(updateData, { defaultToNull: false });
+    if (error) throw error;
 
     return NextResponse.json({ success: true, message: "Profil toko berhasil diperbarui." });
   } catch (error) {

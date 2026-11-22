@@ -1,5 +1,6 @@
 import { AdminOrders } from "@/components/admin/admin-orders";
+import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 
 export default function AdminOrdersPage() {
-  return <AdminOrders />;
+  return <AdminAuthGuard><AdminOrders /></AdminAuthGuard>;
 }

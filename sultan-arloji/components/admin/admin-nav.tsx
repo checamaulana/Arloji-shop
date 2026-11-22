@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { signOut } from "firebase/auth";
 import { toast } from "sonner";
-import { auth } from "@/lib/firebase/client";
 import { ChartNoAxesColumn, ClipboardList, Package, Store, LogOut, Watch } from "lucide-react";
 import { useChromeSize } from "@/components/ui/design-layout";
 
@@ -29,7 +27,6 @@ export function AdminNav({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetch("/api/auth/session", { method: "DELETE" });
       if (!response.ok) throw new Error("Sesi server tidak dapat dihapus.");
-      await signOut(auth);
       router.replace("/admin/login");
     } catch (error) {
       console.error("Admin logout failed:", error);

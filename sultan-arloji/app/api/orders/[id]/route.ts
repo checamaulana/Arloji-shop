@@ -1,7 +1,6 @@
-import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { verifyAdminRequest } from "@/lib/auth/verify-admin";
-import { adminDb } from "@/lib/firebase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function PATCH(request: Request, context: RouteContext<"/api/orders/[id]">) {
   if (!(await verifyAdminRequest())) {
@@ -9,39 +8,24 @@ export async function PATCH(request: Request, context: RouteContext<"/api/orders
   }
 
   const { id } = await context.params;
+  const body = await request.json().catch(() => null);
+  if (body?.status !== "completed") {
+    return NextResponse.json({ error: "Status pesanan yang diminta tidak valid." }, { status: 400 });
+  }
+
   try {
-    const body: unknown = await request.json();
-    if (
-      typeof body !== "object" ||
-      body === null ||
-      !("status" in body) ||
-      body.status !== "completed"
-    ) {
-      return NextResponse.json(
-        { error: "Status pesanan yang diminta tidak valid." },
-        { status: 400 }
-      );
-    }
+    const supabase = getSupabaseAdmin();
+    const now = new Date().toISOString();
+    const { data, error } = await supabase.from("orders")
+      .update({ status: "completed", completed_at: now, updated_at: now })
+      .eq("id", id).eq("status", "active").select("id").maybeSingle();
+    if (error) throw error;
+    if (data) return NextResponse.json({ success: true });
 
-    const orderRef = adminDb.collection("orders").doc(id);
-    const order = await orderRef.get();
-    if (!order.exists) {
-      return NextResponse.json({ error: "Pesanan tidak ditemukan." }, { status: 404 });
-    }
-    if (order.data()?.status !== "active") {
-      return NextResponse.json(
-        { error: "Hanya pesanan aktif yang dapat diselesaikan." },
-        { status: 409 }
-      );
-    }
-
-    await orderRef.update({
-      status: "completed",
-      completed_at: FieldValue.serverTimestamp(),
-      updated_at: FieldValue.serverTimestamp(),
-    });
-
-    return NextResponse.json({ success: true });
+    const { data: existing, error: lookupError } = await supabase.from("orders").select("id").eq("id", id).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing) return NextResponse.json({ error: "Pesanan tidak ditemukan." }, { status: 404 });
+    return NextResponse.json({ error: "Hanya pesanan aktif yang dapat diselesaikan." }, { status: 409 });
   } catch (error) {
     console.error("Error completing order:", error);
     return NextResponse.json({ error: "Gagal memperbarui status pesanan." }, { status: 500 });

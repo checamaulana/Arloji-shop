@@ -1,21 +1,22 @@
-import { cookies } from "next/headers";
-import { adminAuth } from "@/lib/firebase/admin";
+import type { User } from "@supabase/supabase-js";
+import { createSupabaseSession } from "@/lib/supabase/session";
 
-export const ADMIN_SESSION_COOKIE = "__session";
-export const ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 5;
+export function isAdmin(user: User | null): user is User {
+  return user?.app_metadata.role === "admin";
+}
+
+export async function getAdminSession() {
+  try {
+    const supabase = await createSupabaseSession();
+    if (!supabase) return null;
+    const { data: { user }, error } = await supabase.auth.getUser();
+    return !error && isAdmin(user) ? { supabase, user } : null;
+  } catch (error) {
+    console.error("Could not verify admin session:", error);
+    return null;
+  }
+}
 
 export async function verifyAdminRequest(): Promise<boolean> {
-  const sessionCookie = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-
-  if (!sessionCookie) {
-    return false;
-  }
-
-  try {
-    await adminAuth.verifySessionCookie(sessionCookie, true);
-    return true;
-  } catch (error) {
-    console.warn("Admin session verification failed:", error);
-    return false;
-  }
+  return (await getAdminSession()) !== null;
 }

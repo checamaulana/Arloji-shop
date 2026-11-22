@@ -2,10 +2,8 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { LoaderCircle, Watch } from "lucide-react";
 import { toast } from "sonner";
-import { auth } from "@/lib/firebase/client";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -22,12 +20,10 @@ export default function AdminLoginPage() {
     setNotice("");
 
     try {
-      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const idToken = await credential.user.getIdToken();
       const response = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       if (!response.ok) {
@@ -39,9 +35,7 @@ export default function AdminLoginPage() {
       router.replace("/admin");
     } catch (error) {
       console.error("Admin login failed:", error);
-      const code = (error as { code?: string })?.code;
-      const invalidCredentials = code && ["auth/invalid-credential", "auth/invalid-login-credentials", "auth/user-not-found", "auth/wrong-password"].includes(code);
-      setNotice(invalidCredentials ? "Email atau kata sandi salah." : code ? "Tidak dapat masuk. Silakan coba lagi." : error instanceof Error ? error.message : "Tidak dapat masuk. Silakan coba lagi.");
+      setNotice(error instanceof Error ? error.message : "Tidak dapat masuk. Silakan coba lagi.");
       requestAnimationFrame(() => errorRef.current?.focus());
     } finally {
       setIsSubmitting(false);

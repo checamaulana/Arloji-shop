@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { streamText } from "ai";
 import { openrouter } from "@/lib/ai/openrouter";
-import { adminDb } from "@/lib/firebase/admin";
+import { readProducts } from "@/lib/supabase/catalog";
 import { initialProducts, initialStoreData } from "@/lib/data/initial-data";
 import { formatRupiah } from "@/lib/utils";
 
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
 
-    // 1. Fetch catalog products and ranking data from Firestore
+    // 1. Fetch catalog products and ranking data
     let catalogList: Array<{
       name: string;
       price: number;
@@ -19,25 +19,9 @@ export async function POST(req: NextRequest) {
     }> = [];
 
     try {
-      const snapshot = await adminDb
-        .collection("products")
-        .orderBy("whatsapp_clicks", "desc")
-        .get();
-
-      if (!snapshot.empty) {
-        catalogList = snapshot.docs.map((doc) => {
-          const d = doc.data();
-          return {
-            name: d.name,
-            price: d.price,
-            description: d.description || "",
-            stock_status: d.stock_status || "in_stock",
-            whatsapp_clicks: d.whatsapp_clicks || 0,
-          };
-        });
-      }
+      catalogList = await readProducts();
     } catch (e) {
-      console.warn("Could not load products from Firestore for AI Chat:", e);
+      console.warn("Could not load products for AI Chat:", e);
     }
 
     if (catalogList.length === 0) {
