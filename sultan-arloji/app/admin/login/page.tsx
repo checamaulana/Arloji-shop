@@ -2,10 +2,9 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { LoaderCircle, Watch } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
-import { auth } from "@/lib/firebase/client";
+import { AdminStoreBrand } from "@/components/admin/admin-store-brand";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -22,12 +21,10 @@ export default function AdminLoginPage() {
     setNotice("");
 
     try {
-      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const idToken = await credential.user.getIdToken();
       const response = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       if (!response.ok) {
@@ -39,9 +36,7 @@ export default function AdminLoginPage() {
       router.replace("/admin");
     } catch (error) {
       console.error("Admin login failed:", error);
-      const code = (error as { code?: string })?.code;
-      const invalidCredentials = code && ["auth/invalid-credential", "auth/invalid-login-credentials", "auth/user-not-found", "auth/wrong-password"].includes(code);
-      setNotice(invalidCredentials ? "Email atau kata sandi salah." : code ? "Tidak dapat masuk. Silakan coba lagi." : error instanceof Error ? error.message : "Tidak dapat masuk. Silakan coba lagi.");
+      setNotice(error instanceof Error ? error.message : "Tidak dapat masuk. Silakan coba lagi.");
       requestAnimationFrame(() => errorRef.current?.focus());
     } finally {
       setIsSubmitting(false);
@@ -52,7 +47,7 @@ export default function AdminLoginPage() {
     <main id="konten" tabIndex={-1} className="app-shell gutter flex flex-col justify-center bg-surface py-8">
       <div className="on-brand rounded-3xl p-4 shadow-sm">
         <div className="glass flex items-center gap-3 rounded-2xl p-3 font-bold text-brand">
-          <span className="icon-tile"><Watch aria-hidden="true" /></span> Sultan Arloji
+          <AdminStoreBrand />
         </div>
       </div>
       <section className="card mt-4 p-4 min-[360px]:p-5" aria-labelledby="login-title">

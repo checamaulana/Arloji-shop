@@ -1,5 +1,6 @@
 import { AdminProductForm } from "@/components/admin/admin-product-form";
+import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 
 export default function AddProductPage() {
-  return <AdminProductForm />;
+  return <AdminAuthGuard><AdminProductForm /></AdminAuthGuard>;
 }

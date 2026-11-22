@@ -1,5 +1,7 @@
 # Backend Structure & API Specification (BACKEND_STRUCTURE.md) — Sultan Arloji
 
+Skema Supabase dan kebijakan akses terdapat di [migrasi SQL](supabase/migrations/20261122000000_initial_schema.sql). Endpoint aplikasi tetap berada di `app/api`. Rincian Firestore, Firebase Auth, dan Firebase Storage di bawah ini mendokumentasikan arsitektur sebelum migrasi.
+
 Dokumen ini menjelaskan struktur direktori backend Next.js App Router, skema database Firestore, spesifikasi API Route Handlers, integrasi SDK, dan aturan keamanan data.
 
 ---

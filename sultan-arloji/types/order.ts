@@ -14,6 +14,6 @@ export interface OrderDocument {
   item: OrderItem;
   total_price: number;
   status: "active" | "completed";
-  created_at?: any;
-  completed_at?: any;
+  created_at?: string | null;
+  completed_at?: string | null;
 }

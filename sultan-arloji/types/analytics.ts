@@ -1,7 +1,7 @@
 export interface AnalyticsVisitDocument {
   date: string; // YYYY-MM-DD
   pageviews: number;
-  last_updated?: any;
+  last_updated?: string | null;
 }
 
 export interface AnalyticsStats {

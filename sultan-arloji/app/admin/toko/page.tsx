@@ -2,16 +2,15 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Image from "next/image";
-import { EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword } from "firebase/auth";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { useAdminStoreBrand } from "@/components/admin/admin-store-brand";
 import { ImagePlus, LoaderCircle, Store } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { auth, storage } from "@/lib/firebase/client";
+import { IMAGE_TYPES, LOGO_SIZE_LIMIT } from "@/lib/supabase/media-config";
+import { uploadStoreImage } from "@/lib/supabase/upload";
 import { formatWhatsAppNumber } from "@/lib/utils";
 import type { StoreDocument } from "@/types/store";
 
-const MAX_LOGO_SIZE = 5 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 type Notice = { text: string; error?: boolean };
 
 function SettingsNotice({ notice }: { notice?: Notice }) {
@@ -19,12 +18,18 @@ function SettingsNotice({ notice }: { notice?: Notice }) {
 }
 
 export default function StoreSettingsPage() {
+  return <AdminAuthGuard><StoreSettings /></AdminAuthGuard>;
+}
+
+function StoreSettings() {
+  const { setBrand } = useAdminStoreBrand();
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [brokenLogo, setBrokenLogo] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [email, setEmail] = useState("");
+  const [currentEmail, setCurrentEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -43,16 +48,23 @@ export default function StoreSettingsPage() {
     let active = true;
     async function loadSettings() {
       try {
-        const response = await fetch("/api/store", { cache: "no-store" });
+        const [response, session] = await Promise.all([
+          fetch("/api/store", { cache: "no-store" }),
+          fetch("/api/auth/session", { cache: "no-store" }),
+        ]);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Profil toko tidak dapat dimuat.");
+        if (!session.ok) throw new Error("Sesi admin berakhir. Silakan masuk kembali.");
+        const { email: accountEmail } = await session.json();
         if (!active) return;
         const store = data.store as StoreDocument;
         setName(store.name || "");
         setBio(store.bio || "");
         setLogoUrl(store.logo_url || "");
         setWhatsappNumber(store.whatsapp_number || "");
-        setEmail(auth.currentUser?.email || "");
+        setBrand(store);
+        setEmail(accountEmail || "");
+        setCurrentEmail(accountEmail || "");
       } catch (error) {
         console.error("Could not load store settings:", error);
         if (active) setLoadError(error instanceof Error ? error.message : "Gagal memuat pengaturan toko.");
@@ -62,13 +74,13 @@ export default function StoreSettingsPage() {
     }
     void loadSettings();
     return () => { active = false; };
-  }, []);
+  }, [setBrand]);
 
   async function uploadLogo(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || operation.current) return;
-    if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_LOGO_SIZE) {
+    if (!IMAGE_TYPES.includes(file.type) || file.size > LOGO_SIZE_LIMIT) {
       setLogoNotice({ text: "Gunakan JPG, PNG, atau WebP dengan ukuran maksimal 5 MB.", error: true });
       return;
     }
@@ -77,11 +89,7 @@ export default function StoreSettingsPage() {
     setLogoNotice(undefined);
     setIsUploading(true);
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("Sesi admin berakhir. Silakan masuk kembali.");
-      const path = `store/logo-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const result = await uploadBytes(ref(storage, path), file, { contentType: file.type });
-      setLogoUrl(await getDownloadURL(result.ref));
+      setLogoUrl(await uploadStoreImage(file, "store"));
       setLogoNotice({ text: "Logo berhasil diunggah. Simpan pengaturan untuk menerapkannya." });
     } catch (error) {
       console.error("Could not upload store logo:", error);
@@ -112,65 +120,58 @@ export default function StoreSettingsPage() {
     setAccountNotice(undefined);
     setIsSaving(true);
     let profileSaved = false;
-    let emailUpdated = false;
-    let passwordUpdated = false;
-    let accountRequested = false;
 
     try {
+      const profile = {
+        name: name.trim(),
+        bio: bio.trim(),
+        logo_url: logoUrl.trim(),
+        whatsapp_number: formatWhatsAppNumber(whatsappNumber),
+      };
       const response = await fetch("/api/store", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          bio: bio.trim(),
-          logo_url: logoUrl.trim(),
-          whatsapp_number: formatWhatsAppNumber(whatsappNumber),
-        }),
+        body: JSON.stringify(profile),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "Pengaturan toko gagal disimpan.");
 
       profileSaved = true;
+      setBrand(profile);
       setProfileNotice({ text: "Informasi toko berhasil disimpan." });
       setLogoNotice(undefined);
 
-      const user = auth.currentUser;
-      const nextEmail = email.trim();
-      accountRequested = nextEmail !== (user?.email || "") || Boolean(newPassword);
-      if (accountRequested && !user) {
-        setAccountNotice({ text: "Sesi Firebase berakhir. Masuk kembali untuk mengubah akun admin.", error: true });
-        return;
-      }
-      if (user && accountRequested) {
+      const nextEmail = email.trim().toLowerCase();
+      const accountRequested = nextEmail !== currentEmail.toLowerCase() || Boolean(newPassword);
+      if (accountRequested) {
         if (!currentPassword) {
           setErrors({ currentPassword: "Masukkan kata sandi saat ini untuk mengubah email atau kata sandi." });
           passwordInput.current?.focus();
           return;
         }
-        const credential = EmailAuthProvider.credential(user.email || "", currentPassword);
-        await reauthenticateWithCredential(user, credential);
-        if (nextEmail !== (user.email || "")) {
-          await updateEmail(user, nextEmail);
-          emailUpdated = true;
-        }
-        if (newPassword) {
-          await updatePassword(user, newPassword);
-          passwordUpdated = true;
+        const accountResponse = await fetch("/api/auth/session", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: nextEmail, currentPassword, newPassword }),
+        });
+        const account = await accountResponse.json().catch(() => null);
+        if (!accountResponse.ok) throw new Error(account?.error || "Akun admin gagal diperbarui.");
+        if (account.emailConfirmationRequired) {
+          setEmail(currentEmail);
+          setAccountNotice({ text: "Periksa kotak masuk untuk mengonfirmasi perubahan email." });
+        } else {
+          setCurrentEmail(nextEmail);
+          setAccountNotice({ text: "Perubahan akun admin berhasil disimpan." });
         }
       }
 
       setCurrentPassword("");
       setNewPassword("");
-      await user?.getIdToken(true);
-      if (accountRequested) setAccountNotice({ text: "Perubahan akun admin berhasil disimpan." });
     } catch (error) {
       console.error("Could not save store settings:", error);
       const message = error instanceof Error ? error.message : "Gagal menyimpan pengaturan.";
       if (!profileSaved) setProfileNotice({ text: message, error: true });
-      else {
-        const saved = emailUpdated && passwordUpdated ? "Email dan kata sandi sudah diperbarui. " : emailUpdated ? "Email sudah diperbarui. " : passwordUpdated ? "Kata sandi sudah diperbarui. " : "";
-        setAccountNotice({ text: saved + message, error: true });
-      }
+      else setAccountNotice({ text: message, error: true });
     } finally {
       operation.current = null;
       setIsSaving(false);
@@ -202,7 +203,7 @@ export default function StoreSettingsPage() {
               <label className="action action-secondary relative cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand has-disabled:cursor-default has-disabled:bg-muted">
                 {isUploading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ImagePlus aria-hidden="true" />}
                 {isUploading ? "Mengunggah logo…" : "Pilih logo"}
-                <input type="file" accept={ACCEPTED_TYPES.join(",")} disabled={busy} onChange={(event) => void uploadLogo(event)} className="sr-only" aria-describedby="logo-requirements" />
+                <input type="file" accept={IMAGE_TYPES.join(",")} disabled={busy} onChange={(event) => void uploadLogo(event)} className="sr-only" aria-describedby="logo-requirements" />
               </label>
             </div>
             <p className="text-sm text-muted-foreground" id="logo-requirements">JPG, PNG, atau WebP. Maksimal 5 MB.</p>

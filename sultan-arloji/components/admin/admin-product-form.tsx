@@ -2,20 +2,18 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { ArrowLeft, ImagePlus, LoaderCircle, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { auth, storage } from "@/lib/firebase/client";
+import { IMAGE_SIZE_LIMIT, IMAGE_TYPES } from "@/lib/supabase/media-config";
+import { uploadStoreImage } from "@/lib/supabase/upload";
 import { ProductPhoto } from "@/components/ui/product-photo";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProductDocument } from "@/types/product";
 
 const MAX_PHOTOS = 5;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-type Photo = { url: string; enhanced?: boolean };
+type Photo = { url: string; enhancement?: "ai" | "local" };
 type FieldErrors = { name?: string; price?: string; description?: string };
 type Notice = { text: string; error?: boolean };
 
@@ -69,7 +67,7 @@ export function AdminProductForm({ productId }: { productId?: string }) {
     const slots = MAX_PHOTOS - photos.length;
     if (slots <= 0) return;
     const selectedFiles = files.slice(0, slots);
-    if (selectedFiles.some((file) => !ACCEPTED_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE)) {
+    if (selectedFiles.some((file) => !IMAGE_TYPES.includes(file.type) || file.size > IMAGE_SIZE_LIMIT)) {
       setGalleryNotice({ text: "Gunakan JPG, PNG, atau WebP dengan ukuran maksimal 10 MB per foto.", error: true });
       return;
     }
@@ -78,13 +76,8 @@ export function AdminProductForm({ productId }: { productId?: string }) {
     setGalleryNotice(undefined);
     setIsUploading(true);
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("Sesi Firebase berakhir. Silakan masuk kembali.");
-      await user.getIdToken();
       const uploaded = await Promise.all(selectedFiles.map(async (file) => {
-        const path = `products/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-        const result = await uploadBytes(ref(storage, path), file, { contentType: file.type });
-        return { url: await getDownloadURL(result.ref) };
+        return { url: await uploadStoreImage(file, "products") };
       }));
       setPhotos((current) => [...current, ...uploaded].slice(0, MAX_PHOTOS));
       setGalleryNotice({ text: files.length > slots
@@ -111,12 +104,16 @@ export function AdminProductForm({ productId }: { productId?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image_url: photos[index].url }),
       });
-      const data = await response.json();
-      if (!response.ok || typeof data.enhanced_image_url !== "string" || !data.enhanced_image_url) {
-        throw new Error(data.error || "Foto tidak dapat disempurnakan.");
+      const data = await response.json().catch(() => null);
+      if (!response.ok || typeof data?.enhanced_image_url !== "string" || !data.enhanced_image_url) {
+        throw new Error(data?.error || "Foto tidak dapat disempurnakan.");
       }
-      setPhotos((current) => [...current, { url: data.enhanced_image_url, enhanced: true }].slice(0, MAX_PHOTOS));
-      setGalleryNotice({ text: "Hasil AI ditambahkan ke galeri." });
+      const enhancement = data.enhancement_method === "local" ? "local" : "ai";
+      const enhancedPhoto: Photo = { url: data.enhanced_image_url, enhancement };
+      setPhotos((current) => [...current, enhancedPhoto].slice(0, MAX_PHOTOS));
+      setGalleryNotice({ text: enhancement === "local"
+        ? "Cloudflare menolak hasil AI. Foto dengan kontras dan ketajaman yang disesuaikan ditambahkan ke galeri."
+        : "Hasil AI ditambahkan ke galeri." });
     } catch (error) {
       console.error("Could not enhance product photo:", error);
       setGalleryNotice({ text: error instanceof Error ? error.message : "Gagal menyempurnakan foto.", error: true });
@@ -223,7 +220,11 @@ export function AdminProductForm({ productId }: { productId?: string }) {
                   <div className="relative aspect-square rounded-t-xl bg-brand-tint">
                     <ProductPhoto src={photo.url} alt={`Foto barang ${index + 1}`} sizes="(max-width: 359px) 90vw, (max-width: 448px) 45vw, 200px" />
                     <button type="button" disabled={busy} aria-label={`Hapus foto ${index + 1}`} onClick={() => setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="action action-danger action-icon absolute top-1 right-1 bg-surface"><X aria-hidden="true" /></button>
-                    {photo.enhanced && <span className="status-badge absolute bottom-1 left-1 bg-surface text-brand">Hasil AI</span>}
+                    {photo.enhancement && (
+                      <span className="status-badge absolute bottom-1 left-1 bg-surface text-brand">
+                        {photo.enhancement === "ai" ? "Hasil AI" : "Disesuaikan"}
+                      </span>
+                    )}
                   </div>
                   <div className="p-2">
                     <button
@@ -243,11 +244,11 @@ export function AdminProductForm({ productId }: { productId?: string }) {
                 <label className="action action-secondary relative min-h-28 cursor-pointer flex-col border-dashed p-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand has-disabled:cursor-default has-disabled:bg-muted">
                   {isUploading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ImagePlus aria-hidden="true" />}
                   <span>{isUploading ? "Mengunggah foto…" : "Unggah foto"}</span>
-                  <input type="file" accept={ACCEPTED_TYPES.join(",")} multiple disabled={busy} onChange={(event) => void uploadPhotos(event)} aria-describedby="photo-requirements" className="sr-only" />
+                  <input type="file" accept={IMAGE_TYPES.join(",")} multiple disabled={busy} onChange={(event) => void uploadPhotos(event)} aria-describedby="photo-requirements" className="sr-only" />
                 </label>
               )}
             </div>
-            {photos.length >= MAX_PHOTOS && <p className="text-sm text-muted-foreground">Hapus satu foto untuk menambahkan hasil AI.</p>}
+            {photos.length >= MAX_PHOTOS && <p className="text-sm text-muted-foreground">Hapus satu foto untuk menambahkan hasil penyempurnaan.</p>}
             <p role="status" className={galleryNotice ? `notice ${galleryNotice.error ? "notice-error" : "notice-success"}` : "sr-only"}>
               {galleryNotice?.text || (isUploading ? "Mengunggah foto…" : enhancingIndex !== null ? "Menyempurnakan foto…" : "")}
             </p>

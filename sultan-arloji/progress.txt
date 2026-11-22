@@ -20,3 +20,14 @@
 ## Redesign DESIGN.md
 - [x] Terapkan tema, katalog, checkout, Asisten AI, dan tampilan semua rute admin sesuai DESIGN.md.
 - [x] Build produksi, TypeScript, lint UI, dan pengujian Chrome dengan API simulasi lulus. Hasil dan uji integrasi yang masih terbuka dicatat di DESIGN.md.
+- [x] Hapus filter merek dari katalog customer dan pertahankan pencarian produk.
+- [x] Gunakan bahasa Indonesia santai dan teks biasa untuk balasan asisten customer, dengan jawaban faktual tentang katalog.
+- [x] Tampilkan logo toko pada header dan halaman masuk admin, dan perbarui setelah profil toko disimpan.
+
+## Migrasi Supabase
+- [x] Pindahkan katalog, pesanan, profil toko, dan analitik ke Supabase Postgres.
+- [x] Pindahkan sesi admin ke Supabase Auth dan unggahan foto ke Supabase Storage.
+- [ ] Terapkan skema dan verifikasi di proyek Supabase tujuan setelah koneksi tersedia.
+
+## Penyempurnaan foto produk
+- [x] Tambahkan penyesuaian kontras dan ketajaman dari foto sumber ketika Cloudflare menolak hasil AI.

@@ -6,6 +6,6 @@ export interface ProductDocument {
   photos: string[];
   stock_status: "in_stock" | "out_of_stock";
   whatsapp_clicks: number;
-  created_at?: any;
-  updated_at?: any;
+  created_at?: string | null;
+  updated_at?: string | null;
 }

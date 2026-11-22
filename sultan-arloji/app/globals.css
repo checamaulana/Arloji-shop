@@ -190,8 +190,8 @@
   .icon-tile { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border-radius: 12px; background: var(--brand-tint); color: var(--brand); }
   .icon-tile svg { width: 20px; height: 20px; }
   .photo-size { width: var(--photo-size); }
-  .catalog-filters { position: sticky; top: 0; z-index: 20; }
-  .catalog-filters[data-compact] { position: static; }
+  .catalog-search { position: sticky; top: 0; z-index: 20; }
+  .catalog-search[data-compact] { position: static; }
   .catalog { padding-bottom: calc(var(--fixed-bottom, 68px) + 16px + var(--safe-bottom)); }
   .admin-shell { min-height: 100dvh; padding-bottom: calc(var(--fixed-bottom, 68px + var(--safe-bottom)) + 16px); }
   .admin-nav { width: min(100%, var(--column)); padding-bottom: calc(8px + var(--safe-bottom)); }

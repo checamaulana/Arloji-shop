@@ -1,4 +1,5 @@
 import type { ProductDocument } from "@/types/product";
+import { getMediaPath } from "@/lib/supabase/media";
 
 export interface ProductInput {
   name: string;
@@ -31,7 +32,7 @@ export function isProductInput(value: unknown): value is ProductInput {
 function isValidPhotoUrl(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 2048) return false;
   try {
-    return new URL(value).protocol === "https:";
+    return new URL(value).protocol === "https:" || getMediaPath(value, "products") !== null;
   } catch {
     return false;
   }
