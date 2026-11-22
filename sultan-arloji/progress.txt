@@ -16,3 +16,7 @@
 - [x] Fase 8: Manajemen Pesanan (tab aktif/riwayat, rincian customer, tandai selesai, endpoint status terproteksi).
 - [ ] Fase 9: Pengaturan Profil Toko & Sinkronisasi Nomor WhatsApp
 - [ ] Fase 10: Pengujian Akhir & QA
+
+## Redesign DESIGN.md
+- [x] Terapkan tema, katalog, checkout, Asisten AI, dan tampilan semua rute admin sesuai DESIGN.md.
+- [x] Build produksi, TypeScript, lint UI, dan pengujian Chrome dengan API simulasi lulus. Hasil dan uji integrasi yang masih terbuka dicatat di DESIGN.md.

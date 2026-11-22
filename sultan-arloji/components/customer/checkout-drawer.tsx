@@ -1,303 +1,206 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { ProductDocument } from "@/types/product";
+import { useRef, useState, type FormEvent, type RefObject } from "react";
+import { Loader2, MessageSquare, Minus, Plus, X } from "lucide-react";
+import type { ProductDocument } from "@/types/product";
 import { formatRupiah, formatWhatsAppNumber } from "@/lib/utils";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerClose,
-} from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Plus,
-  Minus,
-  MessageSquare,
-  X,
-  Phone,
-  User,
-  MapPin,
-  CheckCircle,
-  Loader2,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ProductPhoto } from "@/components/ui/product-photo";
+import { useSheetViewport } from "@/components/ui/design-layout";
 
-interface CheckoutDrawerProps {
-  product: ProductDocument | null;
-  isOpen: boolean;
-  onClose: () => void;
-  storeWhatsappNumber?: string;
-  onOrderSuccess?: () => void;
-}
+type CustomerField = "name" | "phone" | "address";
 
 export function CheckoutDrawer({
   product,
   isOpen,
   onClose,
+  returnFocus,
   storeWhatsappNumber = "6281234567890",
-  onOrderSuccess,
-}: CheckoutDrawerProps) {
+}: {
+  product: ProductDocument | null;
+  isOpen: boolean;
+  onClose: () => void;
+  returnFocus: RefObject<HTMLButtonElement | null>;
+  storeWhatsappNumber?: string;
+}) {
   const [quantity, setQuantity] = useState(1);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Reset form when drawer opens for a new product
-  React.useEffect(() => {
-    if (isOpen) {
-      setQuantity(1);
-    }
-  }, [isOpen, product?.id]);
+  const [customer, setCustomer] = useState({ name: "", phone: "", address: "" });
+  const [errors, setErrors] = useState<Partial<Record<CustomerField, string>>>({});
+  const [phase, setPhase] = useState<"idle" | "submitting" | "redirecting">("idle");
+  const [whatsappLink, setWhatsappLink] = useState("");
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const submitting = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const retryLink = useRef<HTMLAnchorElement>(null);
+  const busy = phase !== "idle";
+  useSheetViewport(isOpen);
 
   if (!product) return null;
-
   const itemTotal = product.price * quantity;
-
-  // Generate dynamic WhatsApp Message text
-  const messagePreview = useMemo(() => {
-    const formattedPhone = customerPhone.trim()
-      ? `+62 ${customerPhone.replace(/^0+/, "").trim()}`
-      : "[Nomor WhatsApp kamu]";
-
-    return `Halo kak, mau pesan:
+  const formattedPhone = customer.phone.trim()
+    ? `+62 ${customer.phone.replace(/^0+/, "").trim()}`
+    : "[Nomor WhatsApp kamu]";
+  const messagePreview = `Halo kak, mau pesan:
 
 ${quantity}x ${product.name} — ${formatRupiah(itemTotal)}
 
 Total: ${formatRupiah(itemTotal)}
 
-Nama: ${customerName.trim() || "[Nama kamu]"}
+Nama: ${customer.name.trim() || "[Nama kamu]"}
 No WA: ${formattedPhone}
-Alamat: ${deliveryAddress.trim() || "[Alamat / Area pengiriman]"}`;
-  }, [product.name, quantity, itemTotal, customerName, customerPhone, deliveryAddress]);
+Alamat: ${customer.address.trim() || "[Alamat / Area pengiriman]"}`;
 
-  const handleCheckout = async () => {
-    if (!customerName.trim()) {
-      toast.error("Silakan isi nama kamu terlebih dahulu.");
+  function changeField(field: CustomerField, value: string) {
+    setCustomer((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  function close() {
+    if (!submitting.current) onClose();
+  }
+
+  async function handleCheckout(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!product || submitting.current || whatsappLink) return;
+
+    const validation: Partial<Record<CustomerField, string>> = {};
+    if (!customer.name.trim()) validation.name = "Isi nama kamu terlebih dahulu.";
+    if (!customer.phone.trim()) validation.phone = "Isi nomor WhatsApp kamu.";
+    if (!customer.address.trim()) validation.address = "Isi alamat atau area pengiriman.";
+    setErrors(validation);
+    const firstInvalid = Object.keys(validation)[0];
+    if (firstInvalid) {
+      formRef.current?.querySelector<HTMLElement>(`[name="${firstInvalid}"]`)?.focus();
       return;
     }
-    if (!customerPhone.trim()) {
-      toast.error("Silakan isi nomor WhatsApp kamu.");
-      return;
-    }
-    if (!deliveryAddress.trim()) {
-      toast.error("Silakan isi alamat atau area pengiriman.");
-      return;
-    }
 
-    setIsSubmitting(true);
-
+    submitting.current = true;
+    setPhase("submitting");
     try {
-      // Record order and increment whatsapp_clicks via backend API
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer_name: customerName.trim(),
-          customer_phone: formatWhatsAppNumber(customerPhone.trim()),
-          delivery_address: deliveryAddress.trim(),
+          customer_name: customer.name.trim(),
+          customer_phone: formatWhatsAppNumber(customer.phone.trim()),
+          delivery_address: customer.address.trim(),
           item: {
             product_id: product.id,
             product_name: product.name,
             price: product.price,
-            quantity: quantity,
+            quantity,
             photo_url: product.photos?.[0] || "",
           },
           total_price: itemTotal,
         }),
       });
-
-      if (!response.ok) {
-        console.warn("API Pesanan merespons status non-ok, tetap mengalihkan ke WhatsApp...");
-      }
-
-      toast.success("Mengarahkan ke WhatsApp admin...");
-      onOrderSuccess?.();
-
-      // Form WhatsApp destination URL
-      const cleanStorePhone = formatWhatsAppNumber(storeWhatsappNumber);
-      const encodedMessage = encodeURIComponent(messagePreview);
-      const waUrl = `https://wa.me/${cleanStorePhone}?text=${encodedMessage}`;
-
-      // Short delay for toast visibility before navigating
-      setTimeout(() => {
-        window.open(waUrl, "_blank");
-        setIsSubmitting(false);
-        onClose();
-      }, 500);
-    } catch (err) {
-      console.error("Gagal mencatat pesanan:", err);
-      // Even if API fails, still provide WhatsApp fallback to avoid losing the lead
-      const cleanStorePhone = formatWhatsAppNumber(storeWhatsappNumber);
-      const encodedMessage = encodeURIComponent(messagePreview);
-      window.open(`https://wa.me/${cleanStorePhone}?text=${encodedMessage}`, "_blank");
-      setIsSubmitting(false);
-      onClose();
+      if (!response.ok) console.warn("Pencatatan pesanan gagal. Melanjutkan ke WhatsApp.");
+    } catch (error) {
+      console.error("Gagal mencatat pesanan:", error);
     }
-  };
+
+    setPhase("redirecting");
+    const url = `https://wa.me/${formatWhatsAppNumber(storeWhatsappNumber)}?text=${encodeURIComponent(messagePreview)}`;
+    window.setTimeout(() => {
+      const popup = window.open(url, "_blank");
+      if (popup) popup.opener = null;
+      submitting.current = false;
+      setPhase("idle");
+      if (popup) onClose();
+      else {
+        setWhatsappLink(url);
+        requestAnimationFrame(() => retryLink.current?.focus());
+      }
+    }, 500);
+  }
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="max-w-md mx-auto bg-[#141414] border-t border-neutral-800 text-neutral-100 rounded-t-3xl max-h-[90vh] overflow-y-auto">
-        {/* Header Drawer */}
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-neutral-800/80 bg-[#141414]/95 px-5 py-4 backdrop-blur-md">
-          <div>
-            <span className="text-[10px] font-bold tracking-widest text-[#D4AF37] uppercase">
-              Konfirmasi Pesanan
-            </span>
-            <DrawerTitle className="text-base font-bold text-white">
-              PESANANMU
-            </DrawerTitle>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Tutup"
-            className="size-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-          >
-            <X className="size-4" />
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open, details) => {
+        if (open) return;
+        if (submitting.current) details.cancel();
+        else close();
+      }}
+      onOpenChangeComplete={(open) => {
+        if (open) return;
+        setQuantity(1);
+        setErrors({});
+        setWhatsappLink("");
+      }}
+    >
+      <DialogContent sheet showCloseButton={false} initialFocus={closeButton} finalFocus={returnFocus}>
+        <div className="gutter flex shrink-0 items-center justify-between gap-2 border-b border-border py-2">
+          <DialogTitle className="text-lg leading-6 font-bold">Konfirmasi pesanan</DialogTitle>
+          <button type="button" ref={closeButton} className="action action-ghost action-icon" onClick={close} disabled={busy} aria-label="Tutup">
+            <X aria-hidden="true" />
           </button>
         </div>
 
-        <div className="p-5 space-y-5">
-          {/* Item Details Box */}
-          <div className="flex gap-3.5 rounded-2xl bg-neutral-900/90 border border-neutral-800/80 p-3">
-            <div className="size-16 shrink-0 rounded-xl overflow-hidden bg-neutral-950 border border-neutral-800">
-              <img
-                src={product.photos?.[0] || "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=300"}
-                alt={product.name}
-                className="size-full object-cover"
-              />
-            </div>
-            <div className="flex-1 min-w-0 flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-semibold text-white line-clamp-1">
-                  {product.name}
-                </h3>
-                <p className="text-xs font-bold text-[#D4AF37] mt-0.5">
-                  {formatRupiah(product.price)}
-                </p>
+        <form ref={formRef} onSubmit={handleCheckout} noValidate className="checkout-form">
+          <div className="checkout-fields sheet-scroll gutter min-h-0 space-y-4 py-4">
+            <div className="rounded-2xl border border-border bg-canvas p-3">
+              <div className="flex items-start gap-3">
+                <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-brand-tint">
+                  <ProductPhoto key={product.id} src={product.photos?.[0]} alt={product.name} sizes="64px" compact />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold wrap-anywhere">{product.name}</p>
+                  <p className="mt-1 font-bold wrap-anywhere tabular-nums">{formatRupiah(product.price)} <span className="text-sm font-normal text-muted-foreground">per unit</span></p>
+                </div>
               </div>
-
-              {/* Quantity Selector */}
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-800/60">
-                <span className="text-[11px] text-neutral-400">Jumlah:</span>
-                <div className="flex items-center gap-2 bg-neutral-950 border border-neutral-800 px-2 py-0.5 rounded-full">
-                  <button
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    disabled={quantity <= 1}
-                    className="size-5 rounded-full flex items-center justify-center text-neutral-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
-                  >
-                    <Minus className="size-3" />
-                  </button>
-                  <span className="text-xs font-bold w-4 text-center text-white">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="size-5 rounded-full flex items-center justify-center text-neutral-300 hover:text-white"
-                  >
-                    <Plus className="size-3" />
-                  </button>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+                <span className="text-sm font-semibold">Jumlah</span>
+                <div role="group" aria-label="Jumlah barang" className="flex items-center gap-2">
+                  <button type="button" className="action action-secondary action-icon" aria-label="Kurangi jumlah" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={quantity <= 1 || busy || !!whatsappLink}><Minus aria-hidden="true" /></button>
+                  <output aria-label="Jumlah" className="min-w-6 text-center font-bold tabular-nums">{quantity}</output>
+                  <button type="button" className="action action-secondary action-icon" aria-label="Tambah jumlah" onClick={() => setQuantity((value) => value + 1)} disabled={busy || !!whatsappLink}><Plus aria-hidden="true" /></button>
                 </div>
               </div>
             </div>
+
+            <fieldset disabled={busy || !!whatsappLink} className="space-y-3">
+              <label className="field-label" htmlFor="checkout-name">Nama
+                <input id="checkout-name" name="name" required autoComplete="name" className="field" value={customer.name} onChange={(event) => changeField("name", event.target.value)} aria-invalid={!!errors.name} aria-describedby={errors.name ? "checkout-name-error" : undefined} />
+                {errors.name && <span className="field-error" id="checkout-name-error">{errors.name}</span>}
+              </label>
+              <label className="field-label" htmlFor="checkout-phone">Nomor WhatsApp
+                <span className="flex items-center gap-2">
+                  <span className="shrink-0 rounded-xl bg-brand-tint px-2 py-3 whitespace-nowrap text-brand" aria-hidden="true">ID +62</span>
+                  <input id="checkout-phone" name="phone" required type="tel" autoComplete="tel-national" placeholder="812 3456 7890" className="field" value={customer.phone} onChange={(event) => changeField("phone", event.target.value)} aria-invalid={!!errors.phone} aria-describedby={errors.phone ? "checkout-phone-error" : undefined} />
+                </span>
+                {errors.phone && <span className="field-error" id="checkout-phone-error">{errors.phone}</span>}
+              </label>
+              <label className="field-label" htmlFor="checkout-address">Alamat atau area pengiriman
+                <textarea id="checkout-address" name="address" required rows={2} autoComplete="street-address" className="field" value={customer.address} onChange={(event) => changeField("address", event.target.value)} aria-invalid={!!errors.address} aria-describedby={errors.address ? "checkout-address-error" : undefined} />
+                {errors.address && <span className="field-error" id="checkout-address-error">{errors.address}</span>}
+              </label>
+            </fieldset>
+
+            <section aria-labelledby="whatsapp-preview">
+              <h3 id="whatsapp-preview" className="mb-2 flex items-center gap-2 text-sm font-semibold"><MessageSquare size={18} className="text-brand" aria-hidden="true" /> Pratinjau pesan WhatsApp</h3>
+              <p className="rounded-xl border border-border bg-canvas p-3 text-sm leading-5 wrap-anywhere whitespace-pre-wrap">{messagePreview}</p>
+            </section>
           </div>
 
-          {/* Form Input Data Customer */}
-          <div className="space-y-3">
-            <label className="text-[11px] font-bold tracking-wider text-neutral-300 uppercase">
-              Data Penerima
-            </label>
-
-            {/* Nama */}
-            <div>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-neutral-500" />
-                <Input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nama lengkap kamu (contoh: Wati Lestari)"
-                  className="pl-9 bg-neutral-900 border-neutral-800 text-xs text-white placeholder:text-neutral-500 rounded-xl focus-visible:border-[#D4AF37]"
-                />
-              </div>
+          <div className="sheet-footer gutter space-y-2 border-t border-border bg-surface pt-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-lg font-bold wrap-anywhere tabular-nums">{formatRupiah(itemTotal)}</p>
             </div>
-
-            {/* Nomor WA */}
-            <div>
-              <div className="flex rounded-xl overflow-hidden border border-neutral-800 bg-neutral-900 focus-within:border-[#D4AF37]">
-                <div className="flex items-center gap-1 bg-neutral-800/80 px-3 text-xs font-semibold text-neutral-300 border-r border-neutral-800">
-                  <span>ID +62</span>
-                </div>
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="812 3456 7890"
-                  className="w-full bg-transparent px-3 py-2 text-xs text-white placeholder:text-neutral-500 outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Alamat */}
-            <div>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 size-4 text-neutral-500" />
-                <textarea
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  rows={2}
-                  placeholder="Alamat lengkap / Kota / Area (contoh: Kemang, Jakarta Selatan)"
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-900 pl-9 pr-3 py-2 text-xs text-white placeholder:text-neutral-500 outline-none focus:border-[#D4AF37]"
-                />
-              </div>
-            </div>
+            {whatsappLink ? (
+              <a ref={retryLink} className="action action-primary w-full" href={whatsappLink} target="_blank" rel="noreferrer" onClick={close}>Buka WhatsApp</a>
+            ) : (
+              <button type="submit" disabled={busy} className="action action-primary w-full">
+                {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
+                {phase === "submitting" ? "Memproses pesanan…" : phase === "redirecting" ? "Mengarahkan ke WhatsApp…" : "Lanjut ke WhatsApp"}
+              </button>
+            )}
+            <p className="text-sm text-muted-foreground">Tinjau dan kirim pesan di WhatsApp.</p>
+            <span className="sr-only" role="status">{phase === "redirecting" ? "Mengarahkan ke WhatsApp…" : ""}</span>
           </div>
-
-          {/* Dynamic WhatsApp Preview Box */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <MessageSquare className="size-3.5 text-[#25D366]" />
-              <span className="text-[11px] font-semibold text-neutral-300">
-                Pesan dari WhatsApp kamu:
-              </span>
-            </div>
-            <div className="rounded-2xl border border-neutral-800/80 bg-neutral-950 p-3 text-[11px] font-mono text-neutral-300 whitespace-pre-wrap leading-relaxed shadow-inner">
-              {messagePreview}
-            </div>
-          </div>
-
-          {/* Bottom Total & Checkout Button */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between mb-3 text-xs">
-              <span className="text-neutral-400">Total Pembayaran:</span>
-              <span className="text-base font-bold text-[#D4AF37]">
-                {formatRupiah(itemTotal)}
-              </span>
-            </div>
-
-            <Button
-              onClick={handleCheckout}
-              disabled={isSubmitting}
-              className="w-full h-12 rounded-full bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all active:scale-[0.98]"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  <span>Memproses Pesanan...</span>
-                </>
-              ) : (
-                <>
-                  <Phone className="size-4 fill-white" />
-                  <span>Kirim ke WhatsApp</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </DrawerContent>
-    </Drawer>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

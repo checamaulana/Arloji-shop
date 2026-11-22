@@ -1,31 +1,41 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { ArrowLeft, ImagePlus, LoaderCircle, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { auth, storage } from "@/lib/firebase/client";
+import { ProductPhoto } from "@/components/ui/product-photo";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ProductDocument } from "@/types/product";
 
 const MAX_PHOTOS = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+type Photo = { url: string; enhanced?: boolean };
+type FieldErrors = { name?: string; price?: string; description?: string };
+type Notice = { text: string; error?: boolean };
+
 export function AdminProductForm({ productId }: { productId?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [stockStatus, setStockStatus] = useState<ProductDocument["stock_status"]>("in_stock");
   const [isLoading, setIsLoading] = useState(Boolean(productId));
+  const [loadError, setLoadError] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [galleryNotice, setGalleryNotice] = useState<Notice>();
+  const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [uploadingCount, setUploadingCount] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
   const [enhancingIndex, setEnhancingIndex] = useState<number | null>(null);
+  const operation = useRef<"upload" | "enhance" | "save" | null>(null);
+  const busy = isSaving || isUploading || enhancingIndex !== null;
 
   useEffect(() => {
     if (!productId) return;
@@ -33,262 +43,223 @@ export function AdminProductForm({ productId }: { productId?: string }) {
     fetch("/api/products?admin=1", { cache: "no-store" })
       .then(async (response) => {
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Produk tidak dapat dimuat.");
+        if (!response.ok) throw new Error(data.error || "Barang tidak dapat dimuat.");
         const product = (data.products as ProductDocument[]).find((item) => item.id === productId);
-        if (!product) throw new Error("Produk tidak ditemukan.");
+        if (!product) throw new Error("Barang tidak ditemukan.");
         if (!active) return;
         setName(product.name);
         setPrice(String(product.price));
         setDescription(product.description || "");
-        setPhotos(product.photos || []);
+        setPhotos((product.photos ?? []).map((url) => ({ url })));
         setStockStatus(product.stock_status);
       })
       .catch((error: unknown) => {
         console.error("Could not load product for editing:", error);
-        if (active) toast.error(error instanceof Error ? error.message : "Gagal memuat produk.");
+        if (active) setLoadError(error instanceof Error ? error.message : "Barang tidak dapat dimuat.");
       })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, [productId]);
 
   async function uploadPhotos(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
-    if (!files.length) return;
+    if (!files.length || operation.current) return;
 
-    const availableSlots = MAX_PHOTOS - photos.length;
-    const selectedFiles = files.slice(0, availableSlots);
-    if (files.length > availableSlots) {
-      toast.error(`Maksimal ${MAX_PHOTOS} foto per produk.`);
-    }
+    const slots = MAX_PHOTOS - photos.length;
+    if (slots <= 0) return;
+    const selectedFiles = files.slice(0, slots);
     if (selectedFiles.some((file) => !ACCEPTED_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE)) {
-      toast.error("Gunakan JPG, PNG, atau WebP dengan ukuran maksimal 10 MB per foto.");
+      setGalleryNotice({ text: "Gunakan JPG, PNG, atau WebP dengan ukuran maksimal 10 MB per foto.", error: true });
       return;
     }
 
-    setUploadingCount(selectedFiles.length);
+    operation.current = "upload";
+    setGalleryNotice(undefined);
+    setIsUploading(true);
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error("Sesi Firebase berakhir. Silakan login kembali.");
+      if (!user) throw new Error("Sesi Firebase berakhir. Silakan masuk kembali.");
       await user.getIdToken();
-      const uploadedUrls = await Promise.all(
-        selectedFiles.map(async (file) => {
-          const path = `products/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-          const result = await uploadBytes(ref(storage, path), file, { contentType: file.type });
-          return getDownloadURL(result.ref);
-        })
-      );
-      setPhotos((current) => [...current, ...uploadedUrls].slice(0, MAX_PHOTOS));
-      toast.success(`${uploadedUrls.length} foto berhasil diunggah.`);
+      const uploaded = await Promise.all(selectedFiles.map(async (file) => {
+        const path = `products/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const result = await uploadBytes(ref(storage, path), file, { contentType: file.type });
+        return { url: await getDownloadURL(result.ref) };
+      }));
+      setPhotos((current) => [...current, ...uploaded].slice(0, MAX_PHOTOS));
+      setGalleryNotice({ text: files.length > slots
+        ? `${uploaded.length} foto diunggah. Maksimal ${MAX_PHOTOS} foto per barang.`
+        : `${uploaded.length} foto berhasil diunggah.` });
     } catch (error) {
       console.error("Could not upload product photos:", error);
-      toast.error(error instanceof Error ? error.message : "Gagal mengunggah foto.");
+      setGalleryNotice({ text: error instanceof Error ? error.message : "Gagal mengunggah foto.", error: true });
     } finally {
-      setUploadingCount(0);
+      operation.current = null;
+      setIsUploading(false);
     }
   }
 
   async function enhancePhoto(index: number) {
-    if (photos.length >= MAX_PHOTOS) {
-      toast.error("Hapus satu foto terlebih dahulu untuk menambahkan hasil AI.");
-      return;
-    }
+    if (operation.current || photos.length >= MAX_PHOTOS || !photos[index]) return;
 
+    operation.current = "enhance";
+    setGalleryNotice(undefined);
     setEnhancingIndex(index);
     try {
       const response = await fetch("/api/ai/enhance-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: photos[index] }),
+        body: JSON.stringify({ image_url: photos[index].url }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Foto tidak dapat disempurnakan.");
-      setPhotos((current) => [...current, data.enhanced_image_url].slice(0, MAX_PHOTOS));
-      toast.success("Foto studio AI berhasil ditambahkan.");
+      if (!response.ok || typeof data.enhanced_image_url !== "string" || !data.enhanced_image_url) {
+        throw new Error(data.error || "Foto tidak dapat disempurnakan.");
+      }
+      setPhotos((current) => [...current, { url: data.enhanced_image_url, enhanced: true }].slice(0, MAX_PHOTOS));
+      setGalleryNotice({ text: "Hasil AI ditambahkan ke galeri." });
     } catch (error) {
       console.error("Could not enhance product photo:", error);
-      toast.error(error instanceof Error ? error.message : "Gagal menyempurnakan foto.");
+      setGalleryNotice({ text: error instanceof Error ? error.message : "Gagal menyempurnakan foto.", error: true });
     } finally {
+      operation.current = null;
       setEnhancingIndex(null);
     }
   }
 
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (operation.current) return;
+
     const parsedPrice = Number(price);
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      toast.error("Harga harus berupa angka nol atau lebih.");
+    const fieldErrors: FieldErrors = {};
+    if (!name.trim() || name.length > 160) fieldErrors.name = "Masukkan nama barang hingga 160 karakter.";
+    if (!price.trim() || !Number.isInteger(parsedPrice) || parsedPrice < 0) fieldErrors.price = "Masukkan harga berupa angka bulat mulai dari 0.";
+    if (description.length > 2000) fieldErrors.description = "Masukkan keterangan hingga 2.000 karakter.";
+    setErrors(fieldErrors);
+    const firstInvalid = Object.keys(fieldErrors)[0];
+    if (firstInvalid) {
+      event.currentTarget.querySelector<HTMLElement>(`[name="${firstInvalid}"]`)?.focus();
       return;
     }
 
+    operation.current = "save";
+    setSaveError("");
     setIsSaving(true);
     try {
-      const response = await fetch(
-        productId ? `/api/products/${encodeURIComponent(productId)}` : "/api/products",
-        {
-          method: productId ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            price: parsedPrice,
-            description: description.trim(),
-            photos,
-            stock_status: stockStatus,
-          }),
-        }
-      );
+      const response = await fetch(productId ? `/api/products/${encodeURIComponent(productId)}` : "/api/products", {
+        method: productId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          price: parsedPrice,
+          description: description.trim(),
+          photos: photos.map(({ url }) => url),
+          stock_status: stockStatus,
+        }),
+      });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Produk tidak dapat disimpan.");
-      toast.success(productId ? "Produk berhasil diperbarui." : "Produk berhasil ditambahkan.");
+      if (!response.ok) throw new Error(data.error || "Barang tidak dapat disimpan.");
+      toast.success(productId ? "Barang berhasil diperbarui." : "Barang berhasil ditambahkan.");
       router.replace("/admin/barang");
     } catch (error) {
       console.error("Could not save product:", error);
-      toast.error(error instanceof Error ? error.message : "Gagal menyimpan produk.");
+      setSaveError(error instanceof Error ? error.message : "Gagal menyimpan barang.");
     } finally {
+      operation.current = null;
       setIsSaving(false);
     }
   }
 
-  if (isLoading) {
-    return <div className="px-5 py-16 text-center text-sm text-neutral-400">Memuat produk...</div>;
-  }
-
   return (
-    <main className="px-5 pb-8 pt-7">
-      <Link href="/admin/barang" className="mb-5 inline-flex items-center gap-2 text-xs text-neutral-400 hover:text-white">
-        <ArrowLeft className="size-4" />
-        Kembali ke barang
-      </Link>
-      <h1 className="text-2xl font-semibold text-white">{productId ? "Edit Produk" : "Tambah Barang"}</h1>
-      <p className="mt-1 text-sm text-neutral-400">Informasi produk dan galeri foto.</p>
+    <div className="page">
+      <Link href="/admin/barang" className="action action-ghost -ml-3 mb-2"><ArrowLeft aria-hidden="true" /> Kembali ke barang</Link>
+      <h1>{productId ? "Edit barang" : "Tambah barang"}</h1>
 
-      <form onSubmit={saveProduct} className="mt-6 space-y-5">
-        <label className="block space-y-2 text-xs font-medium text-neutral-300">
-          Nama barang <span className="text-red-400">*</span>
-          <input
-            required
-            maxLength={160}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="h-11 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 text-sm text-white outline-none focus:border-[#D4AF37]"
-            placeholder="Nama jam tangan"
-          />
-        </label>
+      {isLoading ? (
+        <section className="card mt-4 space-y-4 p-4" aria-busy="true">
+          <p className="sr-only" role="status">Memuat barang…</p>
+          <Skeleton className="h-11 w-full" aria-hidden="true" />
+          <Skeleton className="h-11 w-full" aria-hidden="true" />
+          <Skeleton className="h-24 w-full" aria-hidden="true" />
+        </section>
+      ) : loadError ? (
+        <p className="notice notice-error mt-4" role="alert">{loadError}</p>
+      ) : (
+        <form className="mt-4 space-y-4" noValidate onSubmit={saveProduct}>
+          <section className="card space-y-4 p-4" aria-labelledby="product-information">
+            <h2 id="product-information">Informasi barang</h2>
+            <label className="field-label" htmlFor="product-name">Nama barang
+              <input id="product-name" name="name" className="field" required maxLength={160} value={name} onChange={(event) => { setName(event.target.value); setErrors((current) => ({ ...current, name: undefined })); }} aria-invalid={!!errors.name} aria-describedby={errors.name ? "product-name-error" : undefined} />
+              {errors.name && <span className="field-error" id="product-name-error">{errors.name}</span>}
+            </label>
 
-        <label className="block space-y-2 text-xs font-medium text-neutral-300">
-          Harga (Rupiah) <span className="text-red-400">*</span>
-          <input
-            required
-            min="0"
-            step="1"
-            type="number"
-            value={price}
-            onChange={(event) => setPrice(event.target.value)}
-            className="h-11 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 text-sm text-white outline-none focus:border-[#D4AF37]"
-            placeholder="245000000"
-          />
-        </label>
+            <label className="field-label" htmlFor="product-price">Harga (Rupiah)
+              <input id="product-price" name="price" className="field" required min={0} step={1} type="number" inputMode="numeric" value={price} onChange={(event) => { setPrice(event.target.value); setErrors((current) => ({ ...current, price: undefined })); }} aria-invalid={!!errors.price} aria-describedby={errors.price ? "product-price-error" : undefined} />
+              {errors.price && <span className="field-error" id="product-price-error">{errors.price}</span>}
+            </label>
 
-        <label className="block space-y-2 text-xs font-medium text-neutral-300">
-          Keterangan
-          <textarea
-            rows={4}
-            maxLength={2000}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5 text-sm text-white outline-none focus:border-[#D4AF37]"
-            placeholder="Deskripsi atau spesifikasi produk (opsional)"
-          />
-        </label>
+            <label className="field-label" htmlFor="product-description">Keterangan
+              <textarea id="product-description" name="description" className="field" rows={4} maxLength={2000} value={description} onChange={(event) => { setDescription(event.target.value); setErrors((current) => ({ ...current, description: undefined })); }} aria-invalid={!!errors.description} aria-describedby={errors.description ? "product-description-error" : undefined} />
+              {errors.description && <span className="field-error" id="product-description-error">{errors.description}</span>}
+            </label>
 
-        <fieldset className="space-y-3">
-          <legend className="text-xs font-medium text-neutral-300">
-            Foto produk <span className="text-neutral-500">({photos.length}/{MAX_PHOTOS})</span>
-          </legend>
-          <div className="grid grid-cols-2 gap-3">
-            {photos.map((photo, index) => (
-              <div key={`${photo}-${index}`} className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-                <div className="relative aspect-square">
-                  <Image
-                    src={photo}
-                    alt={`Foto produk ${index + 1}`}
-                    fill
-                    unoptimized
-                    sizes="(max-width: 448px) 50vw, 224px"
-                    className="object-cover"
-                  />
-                  <button
-                    type="button"
-                    aria-label={`Hapus foto ${index + 1}`}
-                    onClick={() => setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
-                    className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-black/75 text-white"
-                  >
-                    <X className="size-4" />
-                  </button>
+            <label className="field-label" htmlFor="product-stock">Status stok
+              <select id="product-stock" className="field" value={stockStatus} onChange={(event) => setStockStatus(event.target.value as ProductDocument["stock_status"])}>
+                <option value="in_stock">Tersedia</option>
+                <option value="out_of_stock">Habis</option>
+              </select>
+            </label>
+          </section>
+
+          <section className="card space-y-3 p-4" aria-labelledby="product-photos">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="product-photos">Foto produk</h2>
+              <p className="text-sm text-muted-foreground tabular-nums">{photos.length}/{MAX_PHOTOS} foto</p>
+            </div>
+            <p className="text-sm text-muted-foreground" id="photo-requirements">JPG, PNG, atau WebP. Maksimal 10 MB per foto.</p>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,120px),1fr))] gap-3">
+              {photos.map((photo, index) => (
+                <div key={`${photo.url}-${index}`} className="min-w-0 rounded-xl border border-border">
+                  <div className="relative aspect-square rounded-t-xl bg-brand-tint">
+                    <ProductPhoto src={photo.url} alt={`Foto barang ${index + 1}`} sizes="(max-width: 359px) 90vw, (max-width: 448px) 45vw, 200px" />
+                    <button type="button" disabled={busy} aria-label={`Hapus foto ${index + 1}`} onClick={() => setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="action action-danger action-icon absolute top-1 right-1 bg-surface"><X aria-hidden="true" /></button>
+                    {photo.enhanced && <span className="status-badge absolute bottom-1 left-1 bg-surface text-brand">Hasil AI</span>}
+                  </div>
+                  <div className="p-2">
+                    <button
+                      type="button"
+                      className="action action-secondary w-full px-1 text-xs"
+                      disabled={busy || photos.length >= MAX_PHOTOS}
+                      aria-label={enhancingIndex === index ? `Menyempurnakan foto ${index + 1}` : `Sempurnakan dengan AI, foto ${index + 1}`}
+                      onClick={() => void enhancePhoto(index)}
+                    >
+                      {enhancingIndex === index ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+                      {enhancingIndex === index ? "Menyempurnakan foto…" : "Sempurnakan dengan AI"}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={enhancingIndex !== null || photos.length >= MAX_PHOTOS}
-                  onClick={() => void enhancePhoto(index)}
-                  className="flex h-9 w-full items-center justify-center gap-1.5 text-[10px] font-semibold text-[#D4AF37] hover:bg-neutral-800 disabled:opacity-40"
-                >
-                  {enhancingIndex === index ? (
-                    <LoaderCircle className="size-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-3" />
-                  )}
-                  AI Studio Enhance
-                </button>
-              </div>
-            ))}
-            {photos.length < MAX_PHOTOS && (
-              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-700 bg-neutral-900/50 text-neutral-500 hover:border-[#D4AF37] hover:text-[#D4AF37]">
-                {uploadingCount ? (
-                  <LoaderCircle className="size-6 animate-spin" />
-                ) : (
-                  <ImagePlus className="size-6" />
-                )}
-                <span className="text-xs">{uploadingCount ? "Mengunggah..." : "Tambah foto"}</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  disabled={uploadingCount > 0}
-                  onChange={(event) => void uploadPhotos(event)}
-                  className="sr-only"
-                />
-              </label>
-            )}
-          </div>
-          <p className="text-[10px] text-neutral-500">JPG, PNG, WebP · maksimal 10 MB per foto · AI menambahkan foto alternatif.</p>
-        </fieldset>
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <label className="action action-secondary relative min-h-28 cursor-pointer flex-col border-dashed p-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand has-disabled:cursor-default has-disabled:bg-muted">
+                  {isUploading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ImagePlus aria-hidden="true" />}
+                  <span>{isUploading ? "Mengunggah foto…" : "Unggah foto"}</span>
+                  <input type="file" accept={ACCEPTED_TYPES.join(",")} multiple disabled={busy} onChange={(event) => void uploadPhotos(event)} aria-describedby="photo-requirements" className="sr-only" />
+                </label>
+              )}
+            </div>
+            {photos.length >= MAX_PHOTOS && <p className="text-sm text-muted-foreground">Hapus satu foto untuk menambahkan hasil AI.</p>}
+            <p role="status" className={galleryNotice ? `notice ${galleryNotice.error ? "notice-error" : "notice-success"}` : "sr-only"}>
+              {galleryNotice?.text || (isUploading ? "Mengunggah foto…" : enhancingIndex !== null ? "Menyempurnakan foto…" : "")}
+            </p>
+          </section>
 
-        <label className="block space-y-2 text-xs font-medium text-neutral-300">
-          Status stok
-          <select
-            value={stockStatus}
-            onChange={(event) => setStockStatus(event.target.value as ProductDocument["stock_status"])}
-            className="h-11 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 text-sm text-white outline-none focus:border-[#D4AF37]"
-          >
-            <option value="in_stock">Tersedia</option>
-            <option value="out_of_stock">Habis</option>
-          </select>
-        </label>
-
-        <Button
-          type="submit"
-          disabled={isSaving || uploadingCount > 0 || enhancingIndex !== null}
-          className="h-12 w-full rounded-xl bg-[#D4AF37] font-semibold text-black hover:bg-[#F3E5AB]"
-        >
-          {isSaving ? <LoaderCircle className="size-4 animate-spin" /> : null}
-          {isSaving ? "Menyimpan..." : "Simpan Produk"}
-        </Button>
-      </form>
-    </main>
+          {saveError && <p className="notice notice-error" role="alert">{saveError}</p>}
+          <button type="submit" className="action action-primary w-full" disabled={busy}>
+            {isSaving && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+            {isSaving ? "Menyimpan…" : productId ? "Simpan perubahan" : "Simpan barang"}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
