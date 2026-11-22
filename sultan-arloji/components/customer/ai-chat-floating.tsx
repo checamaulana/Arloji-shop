@@ -14,12 +14,12 @@ interface Message {
 const INITIAL_MESSAGE: Message = {
   id: "welcome",
   role: "assistant",
-  content: "Halo! Saya Concierge AI Sultan Arloji. Ada yang bisa saya bantu terkait koleksi jam tangan mewah kami? Anda dapat menanyakan produk terlaris, rekomendasi jam, atau detail spesifikasi.",
+  content: "Hai! Aku asisten Sultan Arloji. Mau cek harga, stok, atau spek jam? Sebutin aja modelnya, ya.",
 };
 
 const QUICK_PROMPTS = [
   "Apa jam terlaris saat ini?",
-  "Rekomendasi jam formal?",
+  "Gimana cara pesannya?",
   "Apakah barang 100% original?",
 ];
 
@@ -75,20 +75,23 @@ export function AIChatFloating({ hidden }: { hidden: boolean }) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      let assistantText = "";
       while (!controller.signal.aborted) {
         const { done, value } = await reader.read();
         accumulatedText += done ? decoder.decode() : decoder.decode(value, { stream: true });
         if (controller.signal.aborted) return;
-        if (accumulatedText) updateAssistant(accumulatedText);
+        const plainText = accumulatedText.replace(/\*{2,}|_{2,}/g, "");
+        assistantText = done ? plainText : plainText.replace(/[*_]$/, "");
+        if (accumulatedText) updateAssistant(assistantText);
         if (done) break;
       }
       if (controller.signal.aborted) return;
-      if (!accumulatedText.trim()) throw new Error("Respons asisten kosong.");
-      setAnnouncement(`Asisten: ${accumulatedText}`);
+      if (!assistantText.trim()) throw new Error("Respons asisten kosong.");
+      setAnnouncement(`Asisten: ${assistantText}`);
     } catch (error) {
       if (controller.signal.aborted) return;
       console.error("Chat streaming error:", error);
-      const message = "Asisten AI sedang mengalami kendala. Silakan kirim pertanyaan lagi.";
+      const message = "Aku lagi belum bisa jawab. Coba kirim pertanyaanmu lagi, ya.";
       updateAssistant(message);
       setAnnouncement(message);
     } finally {
@@ -134,7 +137,9 @@ export function AIChatFloating({ hidden }: { hidden: boolean }) {
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[90%] rounded-2xl px-3 py-2.5 text-sm leading-5 wrap-anywhere whitespace-pre-wrap ${message.role === "user" ? "bg-yellow-action" : "bg-brand-tint"}`}>
-                  <p className="mb-1 text-xs font-bold text-brand">{message.role === "user" ? "Anda" : "Asisten"}</p>
+                  <p className={`mb-1 text-xs text-brand${message.role === "user" ? " font-bold" : ""}`}>
+                    {message.role === "user" ? "Anda" : "Asisten"}
+                  </p>
                   <p>{message.content || "Asisten sedang menjawab…"}</p>
                 </div>
               </div>

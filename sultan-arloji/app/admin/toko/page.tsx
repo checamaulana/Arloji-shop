@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Image from "next/image";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { useAdminStoreBrand } from "@/components/admin/admin-store-brand";
 import { ImagePlus, LoaderCircle, Store } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IMAGE_TYPES, LOGO_SIZE_LIMIT } from "@/lib/supabase/media-config";
@@ -21,6 +22,7 @@ export default function StoreSettingsPage() {
 }
 
 function StoreSettings() {
+  const { setBrand } = useAdminStoreBrand();
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -60,6 +62,7 @@ function StoreSettings() {
         setBio(store.bio || "");
         setLogoUrl(store.logo_url || "");
         setWhatsappNumber(store.whatsapp_number || "");
+        setBrand(store);
         setEmail(accountEmail || "");
         setCurrentEmail(accountEmail || "");
       } catch (error) {
@@ -71,7 +74,7 @@ function StoreSettings() {
     }
     void loadSettings();
     return () => { active = false; };
-  }, []);
+  }, [setBrand]);
 
   async function uploadLogo(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -119,20 +122,22 @@ function StoreSettings() {
     let profileSaved = false;
 
     try {
+      const profile = {
+        name: name.trim(),
+        bio: bio.trim(),
+        logo_url: logoUrl.trim(),
+        whatsapp_number: formatWhatsAppNumber(whatsappNumber),
+      };
       const response = await fetch("/api/store", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          bio: bio.trim(),
-          logo_url: logoUrl.trim(),
-          whatsapp_number: formatWhatsAppNumber(whatsappNumber),
-        }),
+        body: JSON.stringify(profile),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "Pengaturan toko gagal disimpan.");
 
       profileSaved = true;
+      setBrand(profile);
       setProfileNotice({ text: "Informasi toko berhasil disimpan." });
       setLogoNotice(undefined);
 

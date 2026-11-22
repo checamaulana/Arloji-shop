@@ -25,13 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (catalogList.length === 0) {
-      catalogList = initialProducts.map((p) => ({
-        name: p.name,
-        price: p.price,
-        description: p.description,
-        stock_status: p.stock_status,
-        whatsapp_clicks: p.whatsapp_clicks,
-      }));
+      catalogList = [...initialProducts].sort((first, second) => second.whatsapp_clicks - first.whatsapp_clicks);
     }
 
     // 2. Format products catalog for system prompt
@@ -44,18 +38,14 @@ export async function POST(req: NextRequest) {
       )
       .join("\n");
 
-    const systemPrompt = `Kamu adalah Asisten AI Resmi dari butik jam tangan mewah "Sultan Arloji".
-Peranmu adalah memberikan pelayanan concierge kelas dunia kepada calon kolektor dan pembeli jam tangan mewah.
+    const systemPrompt = `Kamu asisten katalog Sultan Arloji. Jawab dengan bahasa Indonesia ala Gen Z yang santai, singkat, dan sopan. Pakai aku dan kamu. Gunakan kata sehari-hari seperti "cek" atau "spek" kalau cocok, tanpa memaksakan slang.
 
-Karakteristik & Gaya Komunikasi:
-- Selalu bertutur kata ramah, santun, elegan, berwawasan horologi mendalam, dan menggunakan Bahasa Indonesia yang baik.
-- Tahu persis daftar katalog jam tangan yang tersedia beserta tingkat popularitasnya (berdasarkan klik pesanan WhatsApp).
-- Rekomendasikan produk terlaris jika ditanya jam tangan paling populer atau terfavorit.
-- Rekomendasikan jam formal (Dress Watch seperti Patek Philippe / Audemars Piguet), jam diving/sport (seperti Rolex Submariner), atau jam dual time traveler (seperti Rolex GMT-Master II) sesuai preferensi penanya.
-- Berikan saran yang objektif dan ingatkan customer bahwa seluruh unit kami 100% Original & bergaransi.
-- Selalu sarankan customer untuk menekan tombol "Pesan" pada kartu jam di halaman katalog untuk melanjutkan transaksi via WhatsApp resmi Sultan Arloji.
+Tulis jawaban dalam teks biasa. Jangan gunakan Markdown, huruf tebal, heading, atau tanda penekanan seperti tanda bintang.
+Jawab berdasarkan data katalog. Jelaskan harga, stok, spesifikasi, atau perbedaan produk secara netral. Jangan merekomendasikan produk, memilihkan model, atau menyarankan pembelian. Kalau pelanggan meminta rekomendasi, tawarkan untuk membandingkan model yang mereka sebutkan secara faktual.
+Bahas popularitas hanya kalau ditanya. Jelaskan bahwa jumlah klik WhatsApp mengukur minat dan sebutkan datanya secara apa adanya.
+Jika ditanya soal keaslian, koleksi toko dijual sebagai produk original dan bergaransi. Jika ditanya cara pesan, jelaskan tombol Pesan pada kartu produk untuk membuka WhatsApp admin. Kalau informasinya belum ada di katalog, bilang apa adanya.
 
-Katalog Jam Tangan Sultan Arloji Saat Ini (Diurutkan dari yang paling diminati):
+Katalog Sultan Arloji, diurutkan berdasarkan klik WhatsApp
 ${formattedCatalog}
 
 Catatan Toko:
@@ -69,16 +59,18 @@ Lokasi & Jangkauan: Pengiriman berasuransi ke seluruh Indonesia.`;
     if (!apiKey || apiKey.trim() === "" || apiKey === "mock-openrouter-key") {
       // Mock streaming fallback for development/demo
       const userMessage = messages[messages.length - 1]?.content || "";
-      let mockReply = `Halo! Selamat datang di Sultan Arloji. `;
-
       const lower = userMessage.toLowerCase();
-      if (lower.includes("terlaris") || lower.includes("populer") || lower.includes("rekomendasi")) {
-        const topItem = catalogList[0];
-        mockReply += `Saat ini produk terlaris dan paling diminati di butik kami adalah **${topItem?.name}** (${formatRupiah(topItem?.price || 0)}), yang telah dipilih lebih dari ${topItem?.whatsapp_clicks} kali oleh para kolektor.\n\nApakah Anda mencari jam untuk acara formal, koleksi investasi, atau penggunaan harian?`;
-      } else if (lower.includes("formal") || lower.includes("pesta")) {
-        mockReply += `Untuk acara formal dan eksekutif, kami sangat merekomendasikan **Patek Philippe Nautilus 5711** atau **Audemars Piguet Royal Oak**. Keduanya memiliki profil ramping nan ikonik yang memancarkan aura kemewahan tak terbantahkan.\n\nSilakan tekan tombol **Pesan** pada katalog untuk terhubung langsung ke WhatsApp admin kami.`;
-      } else {
-        mockReply += `Saya siap membantu Anda memilih jam tangan impian dari koleksi terbaik kami (Rolex, Patek Philippe, Audemars Piguet, Hublot). Seluruh unit terjamin 100% Original.\n\nAda model atau kriteria khusus yang sedang Anda cari?`;
+      const topItem = catalogList[0];
+      let mockReply = "Lagi cek jam apa? Sebutin modelnya aja, ya. Aku bisa bantu cek harga, stok, dan speknya.";
+
+      if (lower.includes("rekomendasi") || lower.includes("saran") || lower.includes("cocok")) {
+        mockReply = "Kalau ada model yang lagi kamu lihat, sebutin namanya aja. Aku bisa bantu bandingin harga, stok, dan speknya.";
+      } else if (topItem && (lower.includes("terlaris") || lower.includes("populer") || lower.includes("klik"))) {
+        mockReply = `Kalau dilihat dari minat di katalog, ${topItem.name} punya ${topItem.whatsapp_clicks} klik WhatsApp, paling banyak saat ini. Harganya ${formatRupiah(topItem.price)}.`;
+      } else if (lower.includes("pesan") || lower.includes("order")) {
+        mockReply = "Buka katalog, lalu tap tombol Pesan di kartu jam yang kamu pilih. Nanti kamu bisa lanjut chat admin via WhatsApp.";
+      } else if (lower.includes("original") || lower.includes("asli") || lower.includes("garansi")) {
+        mockReply = "Iya, koleksi Sultan Arloji dijual sebagai produk original dan bergaransi. Kalau mau cek detailnya, sebutin model jamnya, ya.";
       }
 
       // Return synthetic streaming response
@@ -113,7 +105,7 @@ Lokasi & Jangkauan: Pengiriman berasuransi ke seluruh Indonesia.`;
   } catch (error) {
     console.error("Error handling AI chat:", error);
     return NextResponse.json(
-      { error: "Mohon maaf, asisten AI sedang sibuk. Silakan hubungi kami via WhatsApp." },
+      { error: "Aku lagi belum bisa jawab. Kamu bisa chat admin via WhatsApp, ya." },
       { status: 500 }
     );
   }

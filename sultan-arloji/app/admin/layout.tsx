@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { AdminStoreBrandProvider } from "@/components/admin/admin-store-brand";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,7 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
       }
     >
-      {children}
+      <AdminStoreBrandProvider>{children}</AdminStoreBrandProvider>
     </Suspense>
   );
 }

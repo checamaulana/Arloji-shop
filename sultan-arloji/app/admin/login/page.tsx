@@ -2,8 +2,9 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { LoaderCircle, Watch } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
+import { AdminStoreBrand } from "@/components/admin/admin-store-brand";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -46,7 +47,7 @@ export default function AdminLoginPage() {
     <main id="konten" tabIndex={-1} className="app-shell gutter flex flex-col justify-center bg-surface py-8">
       <div className="on-brand rounded-3xl p-4 shadow-sm">
         <div className="glass flex items-center gap-3 rounded-2xl p-3 font-bold text-brand">
-          <span className="icon-tile"><Watch aria-hidden="true" /></span> Sultan Arloji
+          <AdminStoreBrand />
         </div>
       </div>
       <section className="card mt-4 p-4 min-[360px]:p-5" aria-labelledby="login-title">

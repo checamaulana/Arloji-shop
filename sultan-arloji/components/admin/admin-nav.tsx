@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChartNoAxesColumn, ClipboardList, Package, Store, LogOut, Watch } from "lucide-react";
+import { ChartNoAxesColumn, ClipboardList, Package, Store, LogOut } from "lucide-react";
+import { AdminStoreBrand } from "@/components/admin/admin-store-brand";
 import { useChromeSize } from "@/components/ui/design-layout";
 
 const navigation = [
@@ -39,7 +40,7 @@ export function AdminNav({ children }: { children: React.ReactNode }) {
     <>
       <header className="gutter flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface py-2.5">
         <p className="flex min-w-0 items-center gap-2.5 font-bold wrap-anywhere">
-          <span className="icon-tile"><Watch aria-hidden="true" /></span> Sultan Arloji
+          <AdminStoreBrand />
         </p>
         <button type="button" className="action action-ghost" onClick={handleLogout} disabled={loggingOut}>
           <LogOut aria-hidden="true" /> {loggingOut ? "Keluar…" : "Keluar"}
