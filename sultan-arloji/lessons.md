@@ -7,7 +7,10 @@
 - Pada `ai` SDK v7+: gunakan `streamText` dengan `result.toTextStreamResponse()` dan pembacaan stream teks murni pada client reader.
 - Verifikasi sesi admin Supabase di server dan ambil peran dari `app_metadata`. Berikan URL unggah bertanda tangan setelah autentikasi admin.
 - Pertahankan `initial-data.ts` sebagai data contoh untuk katalog publik dan asisten AI ketika database belum siap.
+- Jika pembacaan produk dari Supabase berhasil dan hasilnya kosong, tampilkan katalog kosong.
 - Pada Next.js 16, penggunaan `usePathname()` di client component perlu dibungkus dengan `Suspense` agar route dapat diprerender.
 - Untuk aturan lint React Hooks proyek ini, muat data di dalam effect asinkron dan lakukan perubahan state setelah operasi async selesai, bukan secara sinkron di awal effect.
 - Pada REST API Cloudflare Workers AI, pertahankan garis miring ID model di URL. Untuk FLUX.2 klein 4B, kirim foto referensi melalui `input_image_0` dengan kedua sisi di bawah 512 piksel.
 - Saat Cloudflare menolak hasil penyempurnaan foto dengan kode 3030, sesuaikan kontras dan ketajaman foto sumber dengan Sharp dan beri label yang sesuai pada hasilnya.
+- Batas penggunaan Cloudflare Workers AI dapat muncul sebagai HTTP 429 dengan kode 4006. Gunakan jalur penyempurnaan lokal dan tampilkan alasannya di panel admin.
+- Simpan hasil penyempurnaan foto sebagai pratinjau di browser. Unggah ke Storage hanya saat admin menyimpan barang dengan foto tersebut.

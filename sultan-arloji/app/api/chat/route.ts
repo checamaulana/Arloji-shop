@@ -22,9 +22,6 @@ export async function POST(req: NextRequest) {
       catalogList = await readProducts();
     } catch (e) {
       console.warn("Could not load products for AI Chat:", e);
-    }
-
-    if (catalogList.length === 0) {
       catalogList = [...initialProducts].sort((first, second) => second.whatsapp_clicks - first.whatsapp_clicks);
     }
 
@@ -46,7 +43,7 @@ Bahas popularitas hanya kalau ditanya. Jelaskan bahwa jumlah klik WhatsApp mengu
 Jika ditanya soal keaslian, koleksi toko dijual sebagai produk original dan bergaransi. Jika ditanya cara pesan, jelaskan tombol Pesan pada kartu produk untuk membuka WhatsApp admin. Kalau informasinya belum ada di katalog, bilang apa adanya.
 
 Katalog Sultan Arloji, diurutkan berdasarkan klik WhatsApp
-${formattedCatalog}
+${formattedCatalog || "Katalog saat ini kosong."}
 
 Catatan Toko:
 Nomor WhatsApp Admin: ${initialStoreData.whatsapp_number}
@@ -63,9 +60,11 @@ Lokasi & Jangkauan: Pengiriman berasuransi ke seluruh Indonesia.`;
       const topItem = catalogList[0];
       let mockReply = "Lagi cek jam apa? Sebutin modelnya aja, ya. Aku bisa bantu cek harga, stok, dan speknya.";
 
-      if (lower.includes("rekomendasi") || lower.includes("saran") || lower.includes("cocok")) {
+      if (!topItem) {
+        mockReply = "Katalog Sultan Arloji lagi kosong. Coba cek lagi nanti, ya.";
+      } else if (lower.includes("rekomendasi") || lower.includes("saran") || lower.includes("cocok")) {
         mockReply = "Kalau ada model yang lagi kamu lihat, sebutin namanya aja. Aku bisa bantu bandingin harga, stok, dan speknya.";
-      } else if (topItem && (lower.includes("terlaris") || lower.includes("populer") || lower.includes("klik"))) {
+      } else if (lower.includes("terlaris") || lower.includes("populer") || lower.includes("klik")) {
         mockReply = `Kalau dilihat dari minat di katalog, ${topItem.name} punya ${topItem.whatsapp_clicks} klik WhatsApp, paling banyak saat ini. Harganya ${formatRupiah(topItem.price)}.`;
       } else if (lower.includes("pesan") || lower.includes("order")) {
         mockReply = "Buka katalog, lalu tap tombol Pesan di kartu jam yang kamu pilih. Nanti kamu bisa lanjut chat admin via WhatsApp.";

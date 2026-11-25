@@ -30,4 +30,10 @@
 - [ ] Terapkan skema dan verifikasi di proyek Supabase tujuan setelah koneksi tersedia.
 
 ## Penyempurnaan foto produk
+- [x] Atur ukuran hasil generasi AI ke 512 × 512 piksel.
 - [x] Tambahkan penyesuaian kontras dan ketajaman dari foto sumber ketika Cloudflare menolak hasil AI.
+- [x] Tampilkan hasil penyempurnaan sebagai pratinjau lokal dan unggah hanya foto yang dipilih saat barang disimpan.
+- [x] Gunakan model Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b` untuk penyempurnaan foto produk.
+
+## Penghapusan barang
+- [x] Perjelas penghapusan permanen di panel admin dan gunakan hasil kosong dari Supabase di katalog serta asisten belanja.
