@@ -47,9 +47,7 @@ export default function CatalogPage() {
           return;
         }
         const data = await productsResponse.json();
-        setProducts(data.products?.length ? data.products : initialProducts.map((product, index) => ({
-          ...product, id: `init-${index}`,
-        })));
+        setProducts(data.products);
       } catch (error) {
         console.warn("Load catalog warning, using initial data:", error);
         setProducts(initialProducts.map((product, index) => ({ ...product, id: `init-${index}` })));
@@ -132,8 +130,8 @@ export default function CatalogPage() {
           ) : (
             <div className="card flex flex-col items-center gap-3 px-4 py-8 text-center">
               <span className="icon-tile"><Watch aria-hidden="true" /></span>
-              <h3 className="font-semibold">Jam tangan tidak ditemukan</h3>
-              <button type="button" className="action action-secondary" onClick={clearSearch}>Reset pencarian</button>
+              <h3 className="font-semibold">{products.length ? "Jam tangan tidak ditemukan" : "Belum ada barang di katalog"}</h3>
+              {products.length > 0 && <button type="button" className="action action-secondary" onClick={clearSearch}>Reset pencarian</button>}
             </div>
           )}
         </div>

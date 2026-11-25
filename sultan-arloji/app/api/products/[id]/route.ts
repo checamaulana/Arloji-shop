@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAdminRequest } from "@/lib/auth/verify-admin";
-import { isProductInput } from "@/lib/products/validation";
+import { saveWithProductPhotos } from "@/lib/products/save-photos";
+import { readProductInput } from "@/lib/products/validation";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getMediaPath, mediaBucket } from "@/lib/supabase/media";
 
@@ -10,21 +11,20 @@ export async function PUT(request: Request, context: RouteContext<"/api/products
   }
 
   const { id } = await context.params;
-  const body: unknown = await request.json().catch(() => null);
-  if (!isProductInput(body)) {
+  const body = await readProductInput(request);
+  if (!body) {
     return NextResponse.json({ error: "Nama, harga, status stok, atau foto produk tidak valid." }, { status: 400 });
   }
 
   try {
-    const { data, error } = await getSupabaseAdmin().from("products").update({
+    const data = await saveWithProductPhotos(body.photos, (photos) => getSupabaseAdmin().from("products").update({
       name: body.name.trim(),
       price: body.price,
       description: body.description.trim(),
-      photos: body.photos,
+      photos,
       stock_status: body.stock_status,
       updated_at: new Date().toISOString(),
-    }).eq("id", id).select("id").maybeSingle();
-    if (error) throw error;
+    }).eq("id", id).select("id").maybeSingle());
     if (!data) return NextResponse.json({ error: "Produk tidak ditemukan." }, { status: 404 });
 
     return NextResponse.json({ success: true, product_id: id });

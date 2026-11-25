@@ -13,7 +13,7 @@ import type { ProductDocument } from "@/types/product";
 
 const MAX_PHOTOS = 5;
 
-type Photo = { url: string; enhancement?: "ai" | "local" };
+type Photo = { url: string; preview?: Blob; enhancement?: "ai" | "local" };
 type FieldErrors = { name?: string; price?: string; description?: string };
 type Notice = { text: string; error?: boolean };
 
@@ -33,7 +33,18 @@ export function AdminProductForm({ productId }: { productId?: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [enhancingIndex, setEnhancingIndex] = useState<number | null>(null);
   const operation = useRef<"upload" | "enhance" | "save" | null>(null);
+  const enhancementRequest = useRef<AbortController | null>(null);
+  const previewUrls = useRef(new Set<string>());
   const busy = isSaving || isUploading || enhancingIndex !== null;
+
+  useEffect(() => {
+    const urls = previewUrls.current;
+    return () => {
+      enhancementRequest.current?.abort();
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, [productId]);
 
   useEffect(() => {
     if (!productId) return;
@@ -93,43 +104,70 @@ export function AdminProductForm({ productId }: { productId?: string }) {
   }
 
   async function enhancePhoto(index: number) {
-    if (operation.current || photos.length >= MAX_PHOTOS || !photos[index]) return;
+    const photo = photos[index];
+    if (operation.current || photos.length >= MAX_PHOTOS || !photo) return;
 
     operation.current = "enhance";
+    const controller = new AbortController();
+    enhancementRequest.current = controller;
     setGalleryNotice(undefined);
     setEnhancingIndex(index);
     try {
+      let body: FormData | string;
+      if (photo.preview) {
+        body = new FormData();
+        body.append("image", photo.preview, "source");
+      } else {
+        body = JSON.stringify({ image_url: photo.url });
+      }
       const response = await fetch("/api/ai/enhance-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: photos[index].url }),
+        headers: typeof body === "string" ? { "Content-Type": "application/json" } : undefined,
+        body,
+        signal: controller.signal,
       });
-      const data = await response.json().catch(() => null);
       if (response.status === 401) {
         setGalleryNotice({ text: "Sesi admin berakhir. Masuk lagi di tab lain, lalu coba ulang di sini.", error: true });
         return;
       }
-      if (!response.ok || typeof data?.enhanced_image_url !== "string" || !data.enhanced_image_url) {
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
         throw new Error(data?.error || "Foto tidak dapat disempurnakan.");
       }
-      const enhancement = data.enhancement_method === "local" ? "local" : "ai";
-      const enhancedPhoto: Photo = { url: data.enhanced_image_url, enhancement };
-      setPhotos((current) => [...current, enhancedPhoto].slice(0, MAX_PHOTOS));
+      const preview = await response.blob();
+      if (controller.signal.aborted) return;
+      if (!IMAGE_TYPES.includes(preview.type) || preview.size === 0 || preview.size > IMAGE_SIZE_LIMIT) {
+        throw new Error("Foto hasil penyempurnaan tidak valid.");
+      }
+      const enhancement = response.headers.get("X-Enhancement-Method") === "local" ? "local" : "ai";
+      const url = URL.createObjectURL(preview);
+      previewUrls.current.add(url);
+      setPhotos((current) => [...current, { url, preview, enhancement }]);
       if (enhancement === "local") {
-        const reason = data.fallback_reason === "rate_limit"
+        const reason = response.headers.get("X-Enhancement-Fallback") === "rate_limit"
           ? "Cloudflare mencapai batas penggunaan AI."
           : "Cloudflare menolak hasil AI.";
-        setGalleryNotice({ text: `${reason} Foto yang sudah disesuaikan ditambahkan ke galeri.` });
+        setGalleryNotice({ text: `${reason} Pratinjau foto yang disesuaikan ditambahkan.` });
       } else {
-        setGalleryNotice({ text: "Hasil AI ditambahkan ke galeri." });
+        setGalleryNotice({ text: "Pratinjau hasil AI ditambahkan. Foto diunggah saat barang disimpan." });
       }
     } catch (error) {
-      console.error("Could not enhance product photo:", error);
-      setGalleryNotice({ text: error instanceof Error ? error.message : "Gagal menyempurnakan foto.", error: true });
+      if (!controller.signal.aborted) {
+        console.error("Could not enhance product photo:", error);
+        setGalleryNotice({ text: error instanceof Error ? error.message : "Gagal menyempurnakan foto.", error: true });
+      }
     } finally {
+      enhancementRequest.current = null;
       operation.current = null;
       setEnhancingIndex(null);
     }
+  }
+
+  function removePhoto(index: number) {
+    if (operation.current) return;
+    const { url } = photos[index];
+    if (previewUrls.current.delete(url)) URL.revokeObjectURL(url);
+    setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index));
   }
 
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
@@ -152,16 +190,18 @@ export function AdminProductForm({ productId }: { productId?: string }) {
     setSaveError("");
     setIsSaving(true);
     try {
+      const form = new FormData();
+      form.set("name", name.trim());
+      form.set("price", String(parsedPrice));
+      form.set("description", description.trim());
+      form.set("stock_status", stockStatus);
+      for (const { url, preview } of photos) {
+        if (preview) form.append("photos", preview, "enhanced");
+        else form.append("photos", url);
+      }
       const response = await fetch(productId ? `/api/products/${encodeURIComponent(productId)}` : "/api/products", {
         method: productId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          price: parsedPrice,
-          description: description.trim(),
-          photos: photos.map(({ url }) => url),
-          stock_status: stockStatus,
-        }),
+        body: form,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Barang tidak dapat disimpan.");
@@ -228,7 +268,7 @@ export function AdminProductForm({ productId }: { productId?: string }) {
                 <div key={`${photo.url}-${index}`} className="min-w-0 rounded-xl border border-border">
                   <div className="relative aspect-square rounded-t-xl bg-brand-tint">
                     <ProductPhoto src={photo.url} alt={`Foto barang ${index + 1}`} sizes="(max-width: 359px) 90vw, (max-width: 448px) 45vw, 200px" />
-                    <button type="button" disabled={busy} aria-label={`Hapus foto ${index + 1}`} onClick={() => setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="action action-danger action-icon absolute top-1 right-1 bg-surface"><X aria-hidden="true" /></button>
+                    <button type="button" disabled={busy} aria-label={`Hapus foto ${index + 1}`} onClick={() => removePhoto(index)} className="action action-danger action-icon absolute top-1 right-1 bg-surface"><X aria-hidden="true" /></button>
                     {photo.enhancement && (
                       <span className="status-badge absolute bottom-1 left-1 bg-surface text-brand">
                         {photo.enhancement === "ai" ? "Hasil AI" : "Disesuaikan"}

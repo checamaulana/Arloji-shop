@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminRequest } from "@/lib/auth/verify-admin";
 import { initialProducts } from "@/lib/data/initial-data";
-import { isProductInput } from "@/lib/products/validation";
+import { saveWithProductPhotos } from "@/lib/products/save-photos";
+import { readProductInput } from "@/lib/products/validation";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { readProducts } from "@/lib/supabase/catalog";
 
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const products = await readProducts();
     if (adminRequest) return NextResponse.json({ products }, { headers: { "Cache-Control": "private, no-store" } });
-    if (products.length) return NextResponse.json({ products });
+    return NextResponse.json({ products });
   } catch (error) {
     if (adminRequest) {
       console.error("Could not load products for admin:", error);
@@ -34,20 +35,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesi admin tidak valid." }, { status: 401 });
   }
 
-  const body: unknown = await request.json().catch(() => null);
-  if (!isProductInput(body)) {
+  const body = await readProductInput(request);
+  if (!body) {
     return NextResponse.json({ error: "Nama, harga, status stok, atau foto produk tidak valid." }, { status: 400 });
   }
 
   try {
-    const { data, error } = await getSupabaseAdmin().from("products").insert({
+    const data = await saveWithProductPhotos(body.photos, (photos) => getSupabaseAdmin().from("products").insert({
       name: body.name.trim(),
       price: body.price,
       description: body.description.trim(),
-      photos: body.photos,
+      photos,
       stock_status: body.stock_status,
-    }).select("id").single();
-    if (error) throw error;
+    }).select("id").single());
+    if (!data) throw new Error("Produk yang disimpan tidak ditemukan.");
     return NextResponse.json({ success: true, product_id: data.id }, { status: 201 });
   } catch (error) {
     console.error("Error creating product:", error);

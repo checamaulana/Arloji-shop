@@ -136,8 +136,8 @@ export function AdminProductList() {
         else setDialogOpen(open);
       }}>
         <DialogContent showCloseButton={false} initialFocus={cancelButton} finalFocus={() => deleteTrigger.current?.isConnected ? deleteTrigger.current : title.current}>
-          <DialogTitle className="text-lg leading-6 font-bold">Hapus barang?</DialogTitle>
-          <DialogDescription className="wrap-anywhere">Hapus <strong>{selected?.name}</strong> dari katalog toko.</DialogDescription>
+          <DialogTitle className="text-lg leading-6 font-bold">Hapus barang secara permanen?</DialogTitle>
+          <DialogDescription className="wrap-anywhere"><strong>{selected?.name}</strong> akan dihapus dari database dan katalog toko.</DialogDescription>
           <div className="flex flex-wrap justify-end gap-2">
             <button type="button" ref={cancelButton} className="action action-secondary" onClick={() => setDialogOpen(false)} disabled={isDeleting}>Batal</button>
             <button type="button" className="action action-danger-solid" onClick={deleteProduct} disabled={isDeleting}>{isDeleting ? "Menghapus…" : "Hapus barang"}</button>

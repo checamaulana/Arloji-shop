@@ -237,11 +237,11 @@ export async function verifyAdminRequest(req: Request) {
 - Update field `status` dan `updated_at`.
 
 #### `POST /api/products`
-- Menyimpan produk baru ke Firestore.
-- Memastikan array foto tidak melebihi 5 file URL.
+- Menyimpan produk baru ke Supabase.
+- `POST` dan `PUT` menerima maksimal lima foto. Formulir mengirim URL foto yang sudah ada dan file hasil penyempurnaan yang dipilih sebagai `multipart/form-data`. Server mengunggah file tersebut saat menyimpan produk dan mencatat URL-nya di kolom `photos`.
 
 #### `PUT /api/products/[id]` & `DELETE /api/products/[id]`
-- Mengedit data produk atau menghapusnya dari katalog.
+- `PUT` memperbarui data produk. `DELETE` menghapus baris produk secara permanen dari tabel `products` di Supabase.
 
 #### `PUT /api/store`
 - Memperbarui nama toko, logo, dan nomor WhatsApp admin utama.
@@ -251,15 +251,9 @@ export async function verifyAdminRequest(req: Request) {
 - Mengembalikan data angka pengunjung sesuai rentang filter yang dipilih admin untuk ditampilkan di kartu metrik dashboard.
 
 #### `POST /api/ai/enhance-image`
-- **Request Body:** `{ "image_url": "https://storage.googleapis.com/.../orig.jpg" }`
-- **Proses Server:**
-  1. Server memvalidasi otentikasi admin.
-  2. Mengunduh gambar sumber sebagai buffer.
-  3. Mengirim payload ke Cloudflare Workers AI REST API model `@cf/black-forest-labs/flux-2-klein-4b` dengan instruksi preset studio jam tangan mewah.
-  4. Menerima buffer gambar hasil AI.
-  5. Mengunggah gambar baru ke Firebase Storage path: `products/ai-enhanced/${Date.now()}.jpg`.
-  6. Mengembalikan URL publik gambar baru.
-- **Response:** `{ "enhanced_image_url": "https://..." }`
+- Menerima JSON dengan `image_url` dari Supabase Storage atau file `image` sebagai `multipart/form-data` untuk menyempurnakan ulang pratinjau.
+- Server memvalidasi sesi admin dan mengembalikan gambar hasil Cloudflare Workers AI atau penyesuaian lokal langsung sebagai respons gambar. Header `X-Enhancement-Method` menandai metode yang dipakai.
+- Pratinjau tersimpan di browser sampai admin menyimpan barang atau meninggalkan formulir.
 
 ---
 
